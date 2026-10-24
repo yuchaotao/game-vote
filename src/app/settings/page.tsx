@@ -1,0 +1,106 @@
+import { EmailForm, PasswordForm, ProfileForm, UnlinkButton } from "@/components/auth-forms";
+import { Alert, Avatar, buttonClass, Card, DiscordIcon, SteamIcon } from "@/components/ui";
+import { AUTH_ERRORS, LINKED_MESSAGES, pick } from "@/lib/auth/messages";
+import { requireUser } from "@/lib/auth/session";
+import type { Provider } from "@/lib/auth/users";
+import { formatFriendCode } from "@/lib/auth/validation";
+
+export const metadata = { title: "设置 · Game Vote" };
+
+const PROVIDERS: { id: Provider; name: string; icon: React.ReactNode; purpose: string }[] = [
+  {
+    id: "steam",
+    name: "Steam",
+    icon: <SteamIcon />,
+    purpose: "登录、导入 Steam 好友、检测正在玩的游戏、Steam 消息通知",
+  },
+  {
+    id: "discord",
+    name: "Discord",
+    icon: <DiscordIcon />,
+    purpose: "Discord 私信通知、检测正在玩的游戏",
+  },
+];
+
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const user = await requireUser();
+  const params = await searchParams;
+  const error = pick(AUTH_ERRORS, params.error);
+  const linked = pick(LINKED_MESSAGES, params.linked);
+
+  return (
+    <main className="mx-auto max-w-2xl space-y-6 px-4 py-8">
+      <div className="flex items-center gap-4">
+        <Avatar src={user.avatarUrl} name={user.displayName} size={56} />
+        <div>
+          <h1 className="text-2xl font-bold">{user.displayName}</h1>
+          <p className="text-sm text-zinc-500">
+            好友码：
+            <code className="rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-zinc-800 select-all dark:bg-zinc-800 dark:text-zinc-200">
+              {formatFriendCode(user)}
+            </code>
+          </p>
+        </div>
+      </div>
+
+      {error && <Alert kind="error">{error}</Alert>}
+      {linked && <Alert kind="ok">{linked}</Alert>}
+
+      <Card className="space-y-4">
+        <h2 className="text-lg font-semibold">个人资料</h2>
+        <ProfileForm username={user.username} displayName={user.displayName} />
+      </Card>
+
+      <Card className="space-y-4">
+        <h2 className="text-lg font-semibold">关联账号</h2>
+        <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
+          {PROVIDERS.map((p) => {
+            const account = user.accounts.find((a) => a.provider === p.id);
+            return (
+              <li key={p.id} className="flex items-start justify-between gap-4 py-3">
+                <div className="min-w-0">
+                  <p className="flex items-center gap-2 font-medium">
+                    {p.icon} {p.name}
+                    {account && (
+                      <span className="truncate text-sm font-normal text-zinc-500">
+                        · {account.displayName ?? account.providerAccountId}
+                      </span>
+                    )}
+                  </p>
+                  <p className="mt-0.5 text-xs text-zinc-500">{p.purpose}</p>
+                </div>
+                {account ? (
+                  <UnlinkButton provider={p.id} />
+                ) : (
+                  <a href={`/api/auth/${p.id}?intent=link`} className={buttonClass(p.id)}>
+                    绑定
+                  </a>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </Card>
+
+      <Card className="space-y-4">
+        <h2 className="text-lg font-semibold">邮箱</h2>
+        <EmailForm email={user.email} verified={Boolean(user.emailVerifiedAt)} />
+      </Card>
+
+      <Card className="space-y-4">
+        <h2 className="text-lg font-semibold">密码</h2>
+        {!user.passwordHash && (
+          <p className="text-sm text-zinc-500">
+            你目前只能通过关联账号登录。设置密码后也可以用用户名 <code>{user.username}</code>{" "}
+            和密码登录。
+          </p>
+        )}
+        <PasswordForm hasPassword={Boolean(user.passwordHash)} />
+      </Card>
+    </main>
+  );
+}

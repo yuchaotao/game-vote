@@ -7,12 +7,69 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Base user model. Auth-related models (Account, Session, ...) are added in #2.
 model User {
-  id          String   @id @default(cuid())
-  username    String   @unique
-  displayName String
-  avatarUrl   String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id              String    @id @default(cuid())
+  /// Login handle, stored lowercase. Friend code is `username#friendTag`.
+  username        String    @unique
+  friendTag       String
+  displayName     String
+  avatarUrl       String?
+  email           String?   @unique
+  emailVerifiedAt DateTime?
+  /// Null for accounts created through Steam that never set a password.
+  passwordHash    String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  accounts   Account[]
+  sessions   Session[]
+  authTokens AuthToken[]
+}
+
+/// External identity linked to a user (Steam, Discord).
+model Account {
+  id                String   @id @default(cuid())
+  userId            String
+  provider          String
+  providerAccountId String
+  displayName       String?
+  avatarUrl         String?
+  createdAt         DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@unique([userId, provider])
+}
+
+model Session {
+  /// SHA-256 of the session token; the raw token only lives in the cookie.
+  id        String   @id
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  userAgent String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+enum AuthTokenType {
+  EMAIL_VERIFY
+  PASSWORD_RESET
+}
+
+model AuthToken {
+  id        String        @id @default(cuid())
+  userId    String
+  type      AuthTokenType
+  tokenHash String        @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime      @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type])
 }
