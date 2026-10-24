@@ -1,15 +1,38 @@
 import Link from "next/link";
 import { RegisterForm } from "@/components/auth-forms";
-import { buttonClass, Card, SteamIcon } from "@/components/ui";
+import { Alert, buttonClass, Card, SteamIcon } from "@/components/ui";
+import { inviteCodeFromPath, safeNext } from "@/lib/friends/rules";
+import { findInvite } from "@/lib/friends/service";
 
 export const metadata = { title: "注册 · Game Vote" };
 
-export default function RegisterPage() {
+export default async function RegisterPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+  const next = safeNext(params.next) ?? undefined;
+  const nextQuery = next ? `&next=${encodeURIComponent(next)}` : "";
+
+  // Arriving from an invite link: show who invited you; signing up befriends them.
+  const inviteCode = inviteCodeFromPath(next ?? null);
+  const invite = inviteCode ? await findInvite(inviteCode) : null;
+  const activeInvite = invite?.status === "active" ? invite : null;
+
   return (
     <Card className="space-y-6">
       <h1 className="text-2xl font-bold">注册</h1>
+      {activeInvite && (
+        <Alert kind="info">
+          {activeInvite.creator.displayName} 邀请你加入 Game Vote。注册后你们会自动成为好友。
+        </Alert>
+      )}
 
-      <a href="/api/auth/steam?intent=login" className={buttonClass("steam", "w-full")}>
+      <a
+        href={`/api/auth/steam?intent=login${nextQuery}`}
+        className={buttonClass("steam", "w-full")}
+      >
         <SteamIcon /> 用 Steam 账号直接注册
       </a>
 
@@ -19,11 +42,14 @@ export default function RegisterPage() {
         <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
       </div>
 
-      <RegisterForm />
+      <RegisterForm next={next} invite={activeInvite ? inviteCode! : undefined} />
 
       <p className="text-center text-sm text-zinc-500">
         已有账号？{" "}
-        <Link href="/login" className="text-indigo-600 hover:underline">
+        <Link
+          href={next ? `/login?next=${encodeURIComponent(next)}` : "/login"}
+          className="text-indigo-600 hover:underline"
+        >
           登录
         </Link>
       </p>

@@ -43,9 +43,12 @@ export default async function Home() {
         </Alert>
       )}
       <p className="text-zinc-600 dark:text-zinc-400">
-        你的好友码是 <code className="font-mono">{formatFriendCode(user)}</code>
-        。好友与群组功能即将上线。
+        你的好友码是 <code className="font-mono">{formatFriendCode(user)}</code>。
+        <Link href="/friends" className="ml-1 text-indigo-600 hover:underline">
+          去添加好友 →
+        </Link>
       </p>
+      <p className="text-sm text-zinc-500">群组与投票功能即将上线。</p>
     </main>
   );
 }

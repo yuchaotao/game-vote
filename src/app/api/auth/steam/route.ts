@@ -6,7 +6,7 @@ import { steamLoginUrl } from "@/lib/auth/steam";
 // GET /api/auth/steam?intent=login|link
 export async function GET(req: NextRequest) {
   const intent = req.nextUrl.searchParams.get("intent") === "link" ? "link" : "login";
-  const state = await beginOAuth("steam", intent);
+  const state = await beginOAuth("steam", intent, req.nextUrl.searchParams.get("next"));
   const appUrl = env().APP_URL;
   const returnTo = `${appUrl}/api/auth/steam/callback?state=${state}`;
   return NextResponse.redirect(steamLoginUrl(returnTo, appUrl));

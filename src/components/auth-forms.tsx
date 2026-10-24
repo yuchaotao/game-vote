@@ -23,11 +23,12 @@ function Status({ state }: { state: FormState }) {
   return null;
 }
 
-export function LoginForm() {
+export function LoginForm({ next }: { next?: string }) {
   const [state, action, pending] = useActionState(login, undefined);
   return (
     <form action={action} className="space-y-4">
       <Status state={state} />
+      {next && <input type="hidden" name="next" value={next} />}
       <Field label="用户名或邮箱" name="identifier" autoComplete="username" required />
       <Field
         label="密码"
@@ -48,11 +49,13 @@ export function LoginForm() {
   );
 }
 
-export function RegisterForm() {
+export function RegisterForm({ next, invite }: { next?: string; invite?: string }) {
   const [state, action, pending] = useActionState(register, undefined);
   return (
     <form action={action} className="space-y-4">
       <Status state={state} />
+      {next && <input type="hidden" name="next" value={next} />}
+      {invite && <input type="hidden" name="invite" value={invite} />}
       <Field
         label="用户名"
         name="username"

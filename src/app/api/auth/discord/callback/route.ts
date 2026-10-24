@@ -10,8 +10,9 @@ export async function GET(req: NextRequest) {
   const to = (path: string) => NextResponse.redirect(new URL(path, APP_URL));
   const query = req.nextUrl.searchParams;
 
-  const intent = await finishOAuth("discord", query.get("state"));
-  if (!intent) return to("/login?error=oauth_state");
+  const oauth = await finishOAuth("discord", query.get("state"));
+  if (!oauth) return to("/login?error=oauth_state");
+  const { intent, next } = oauth;
   const failPage = intent === "link" ? "/settings" : "/login";
 
   const code = query.get("code");
@@ -45,5 +46,5 @@ export async function GET(req: NextRequest) {
   const user = await findUserByAccount("discord", discordUser.id);
   if (!user) return to("/login?error=discord_not_linked");
   await createSession(user.id);
-  return to("/");
+  return to(next ?? "/");
 }

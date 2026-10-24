@@ -73,3 +73,26 @@ export async function getSteamPlayer(
     return null;
   }
 }
+
+export type SteamFriendList =
+  { ok: true; steamIds: string[] } | { ok: false; reason: "no-key" | "private" | "error" };
+
+/** Fetches a user's Steam friend list. Requires the friend list to be public. */
+export async function getSteamFriendIds(
+  steamId: string,
+  apiKey: string | undefined,
+  fetchImpl: typeof fetch = fetch,
+): Promise<SteamFriendList> {
+  if (!apiKey) return { ok: false, reason: "no-key" };
+  const url = `https://api.steampowered.com/ISteamUser/GetFriendList/v1/?key=${encodeURIComponent(apiKey)}&steamid=${steamId}&relationship=friend`;
+  try {
+    const res = await fetchImpl(url);
+    // Steam answers 401 when the friend list is private.
+    if (res.status === 401 || res.status === 403) return { ok: false, reason: "private" };
+    if (!res.ok) return { ok: false, reason: "error" };
+    const data = (await res.json()) as { friendslist?: { friends?: { steamid: string }[] } };
+    return { ok: true, steamIds: data.friendslist?.friends?.map((f) => f.steamid) ?? [] };
+  } catch {
+    return { ok: false, reason: "error" };
+  }
+}

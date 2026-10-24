@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
     const page = intent === "link" ? "/settings" : "/login";
     return NextResponse.redirect(new URL(`${page}?error=discord_not_configured`, APP_URL));
   }
-  const state = await beginOAuth("discord", intent);
+  const state = await beginOAuth("discord", intent, req.nextUrl.searchParams.get("next"));
   return NextResponse.redirect(
     discordAuthorizeUrl(DISCORD_CLIENT_ID, `${APP_URL}/api/auth/discord/callback`, state),
   );

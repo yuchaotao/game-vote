@@ -6,6 +6,8 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { safeNext } from "@/lib/friends/rules";
+import { redeemInvite } from "@/lib/friends/service";
 import { hashPassword, verifyPassword } from "./crypto";
 import { rateLimit } from "./rate-limit";
 import { createSession, destroySession, requireUser } from "./session";
@@ -61,7 +63,16 @@ export async function register(_: FormState, form: FormData): Promise<FormState>
 
   await sendVerificationEmail({ id: user.id, email, displayName: user.displayName });
   await createSession(user.id);
-  redirect("/");
+
+  // Signing up through someone's invite link makes you friends right away.
+  const invite = String(form.get("invite") ?? "");
+  if (invite) {
+    const result = await redeemInvite(user.id, invite);
+    if (result.kind === "befriended") {
+      redirect(`/friends?added=${encodeURIComponent(result.creator.displayName)}`);
+    }
+  }
+  redirect(safeNext(form.get("next")) ?? "/");
 }
 
 export async function login(_: FormState, form: FormData): Promise<FormState> {
@@ -81,7 +92,7 @@ export async function login(_: FormState, form: FormData): Promise<FormState> {
   if (!user || !valid) return { error: "用户名/邮箱或密码错误" };
 
   await createSession(user.id);
-  redirect("/");
+  redirect(safeNext(form.get("next")) ?? "/");
 }
 
 export async function logout(): Promise<void> {
