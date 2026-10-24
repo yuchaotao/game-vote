@@ -1,0 +1,46 @@
+import { z } from "zod";
+
+const optional = z
+  .string()
+  .optional()
+  .transform((v) => (v === "" ? undefined : v));
+
+export const envSchema = z.object({
+  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  APP_URL: z.string().url().default("http://localhost:3000"),
+  DATABASE_URL: z.string().min(1),
+  REDIS_URL: z.string().min(1).default("redis://localhost:6379"),
+  SESSION_SECRET: z.string().min(32, "SESSION_SECRET must be at least 32 characters"),
+
+  STEAM_API_KEY: optional,
+  DISCORD_CLIENT_ID: optional,
+  DISCORD_CLIENT_SECRET: optional,
+  DISCORD_BOT_TOKEN: optional,
+  SMTP_HOST: optional,
+  SMTP_PORT: z.coerce.number().int().positive().default(587),
+  SMTP_USER: optional,
+  SMTP_PASS: optional,
+  MAIL_FROM: optional,
+  IGDB_CLIENT_ID: optional,
+  IGDB_CLIENT_SECRET: optional,
+  STEAM_BOT_USERNAME: optional,
+  STEAM_BOT_PASSWORD: optional,
+});
+
+export type Env = z.infer<typeof envSchema>;
+
+export function parseEnv(source: Record<string, string | undefined>): Env {
+  const result = envSchema.safeParse(source);
+  if (!result.success) {
+    const issues = result.error.issues.map((i) => `  ${i.path.join(".")}: ${i.message}`).join("\n");
+    throw new Error(`Invalid environment variables:\n${issues}`);
+  }
+  return result.data;
+}
+
+let cached: Env | undefined;
+
+export function env(): Env {
+  cached ??= parseEnv(process.env);
+  return cached;
+}
