@@ -1,4 +1,4 @@
-# Development: `docker compose up -d` starts postgres + redis; run the app with `npm run dev` / `npm run worker:dev`.
+# Development: `docker compose --profile dev up -d` starts postgres + redis + mailpit; run the app with `npm run dev` / `npm run worker:dev`.
 # Full stack in containers: `docker compose --profile app up -d --build`.
 services:
   postgres:
@@ -29,6 +29,15 @@ services:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       retries: 10
+
+  # Dev mail catcher: SMTP on :1025, web UI + API on :8025.
+  mailpit:
+    image: axllent/mailpit:v1.27
+    restart: unless-stopped
+    profiles: ["dev"]
+    ports:
+      - "127.0.0.1:1025:1025"
+      - "8025:8025"
 
   web:
     profiles: ["app"]
