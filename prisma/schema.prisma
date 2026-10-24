@@ -31,6 +31,68 @@ model User {
   receivedRequests  FriendRequest[]    @relation("ReceivedRequests")
   inviteLinks       InviteLink[]
   inviteRedemptions InviteRedemption[]
+
+  ownedGroups        Group[]            @relation("OwnedGroups")
+  groupMemberships   GroupMember[]
+  groupJoinRequests  GroupJoinRequest[] @relation("JoinRequestUser")
+  groupInvitesSent   GroupJoinRequest[] @relation("JoinRequestInviter")
+  groupDecisionsMade GroupJoinRequest[] @relation("JoinRequestDecider")
+}
+
+model Group {
+  id          String    @id @default(cuid())
+  name        String
+  description String    @default("")
+  ownerId     String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  /// Dissolved groups are archived (history kept), hidden from members.
+  dissolvedAt DateTime?
+
+  owner        User               @relation("OwnedGroups", fields: [ownerId], references: [id])
+  members      GroupMember[]
+  joinRequests GroupJoinRequest[]
+
+  @@index([ownerId])
+}
+
+model GroupMember {
+  groupId  String
+  userId   String
+  joinedAt DateTime @default(now())
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([groupId, userId])
+  @@index([userId])
+}
+
+enum JoinRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+/// A member invited a friend; the owner must approve. Kept as membership history.
+model GroupJoinRequest {
+  id          String            @id @default(cuid())
+  groupId     String
+  userId      String
+  invitedById String
+  status      JoinRequestStatus @default(PENDING)
+  createdAt   DateTime          @default(now())
+  decidedAt   DateTime?
+  decidedById String?
+
+  group     Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user      User  @relation("JoinRequestUser", fields: [userId], references: [id], onDelete: Cascade)
+  invitedBy User  @relation("JoinRequestInviter", fields: [invitedById], references: [id], onDelete: Cascade)
+  decidedBy User? @relation("JoinRequestDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+
+  @@index([groupId, status])
+  @@index([userId])
 }
 
 /// Undirected friendship, stored once with userAId < userBId.
