@@ -185,3 +185,29 @@ test("Steam suggestions prompt to link Steam when not linked", async ({ browser 
     "/api/auth/steam?intent=link",
   );
 });
+
+for (const mode of ["secure", "insecure"] as const) {
+  test(`copy button copies the invite link (${mode} context)`, async ({ browser }) => {
+    const context = await browser.newContext({
+      permissions: ["clipboard-read", "clipboard-write"],
+      extraHTTPHeaders: {
+        "x-forwarded-for": `10.9.${mode === "secure" ? 1 : 2}.${Date.now() % 250}`,
+      },
+    });
+    if (mode === "insecure") {
+      // Plain-HTTP LAN access: no secure context, so the fallback path must work.
+      await context.addInitScript(() =>
+        Object.defineProperty(window, "isSecureContext", { value: false }),
+      );
+    }
+    const page = await context.newPage();
+    await register(page, uid());
+    const invitePath = await createInvite(page, "1");
+
+    const row = page.getByRole("listitem").filter({ hasText: invitePath });
+    await row.getByRole("button", { name: "复制" }).click();
+    await expect(row.getByRole("button", { name: "已复制" })).toBeVisible();
+    const copied = await page.evaluate(() => navigator.clipboard.readText());
+    expect(new URL(copied).pathname).toBe(invitePath);
+  });
+}

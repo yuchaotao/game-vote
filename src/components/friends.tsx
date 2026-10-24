@@ -12,6 +12,7 @@ import {
   revokeInviteLink,
   unfriend,
 } from "@/lib/friends/actions";
+import { copyText } from "@/lib/clipboard";
 import { Alert, Button, Field } from "./ui";
 
 function Status({ state }: { state: FormState }) {
@@ -21,19 +22,18 @@ function Status({ state }: { state: FormState }) {
 }
 
 export function CopyButton({ text, label = "复制" }: { text: string; label?: string }) {
-  const [copied, setCopied] = useState(false);
+  const [result, setResult] = useState<"copied" | "failed" | null>(null);
   return (
     <Button
       type="button"
       variant="secondary"
       className="px-3 py-1.5"
       onClick={async () => {
-        await navigator.clipboard.writeText(text);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1500);
+        setResult((await copyText(text)) ? "copied" : "failed");
+        setTimeout(() => setResult(null), 2000);
       }}
     >
-      {copied ? "已复制" : label}
+      {result === "copied" ? "已复制" : result === "failed" ? "复制失败，请手动复制" : label}
     </Button>
   );
 }
