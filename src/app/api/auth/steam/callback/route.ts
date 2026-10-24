@@ -9,14 +9,17 @@ import {
   linkAccount,
   type ExternalProfile,
 } from "@/lib/auth/users";
+import { inviteCodeFromPath } from "@/lib/friends/rules";
+import { redeemInvite } from "@/lib/friends/service";
 
 export async function GET(req: NextRequest) {
   const { APP_URL, STEAM_API_KEY } = env();
   const to = (path: string) => NextResponse.redirect(new URL(path, APP_URL));
   const query = req.nextUrl.searchParams;
 
-  const intent = await finishOAuth("steam", query.get("state"));
-  if (!intent) return to("/login?error=oauth_state");
+  const oauth = await finishOAuth("steam", query.get("state"));
+  if (!oauth) return to("/login?error=oauth_state");
+  const { intent, next } = oauth;
 
   const steamId = await verifySteamAssertion(query, `${APP_URL}/api/auth/steam/callback`);
   if (!steamId)
@@ -41,8 +44,17 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const user =
-    (await findUserByAccount("steam", steamId)) ?? (await createUserFromProfile(profile));
+  const existing = await findUserByAccount("steam", steamId);
+  const user = existing ?? (await createUserFromProfile(profile));
   await createSession(user.id);
-  return to("/");
+
+  // New account created through an invite link: become friends right away.
+  const inviteCode = inviteCodeFromPath(next);
+  if (!existing && inviteCode) {
+    const result = await redeemInvite(user.id, inviteCode);
+    if (result.kind === "befriended") {
+      return to(`/friends?added=${encodeURIComponent(result.creator.displayName)}`);
+    }
+  }
+  return to(next ?? "/");
 }

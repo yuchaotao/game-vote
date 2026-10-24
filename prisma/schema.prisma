@@ -24,6 +24,80 @@ model User {
   accounts   Account[]
   sessions   Session[]
   authTokens AuthToken[]
+
+  friendshipsA      Friendship[]       @relation("FriendshipA")
+  friendshipsB      Friendship[]       @relation("FriendshipB")
+  sentRequests      FriendRequest[]    @relation("SentRequests")
+  receivedRequests  FriendRequest[]    @relation("ReceivedRequests")
+  inviteLinks       InviteLink[]
+  inviteRedemptions InviteRedemption[]
+}
+
+/// Undirected friendship, stored once with userAId < userBId.
+model Friendship {
+  userAId   String
+  userBId   String
+  createdAt DateTime @default(now())
+  /// How it was formed: "request", "invite".
+  source    String
+
+  userA User @relation("FriendshipA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB User @relation("FriendshipB", fields: [userBId], references: [id], onDelete: Cascade)
+
+  @@id([userAId, userBId])
+  @@index([userBId])
+}
+
+enum FriendRequestStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELLED
+}
+
+/// One row per direction; re-sending after a decline reuses the row.
+model FriendRequest {
+  id          String              @id @default(cuid())
+  fromId      String
+  toId        String
+  status      FriendRequestStatus @default(PENDING)
+  createdAt   DateTime            @default(now())
+  respondedAt DateTime?
+
+  from User @relation("SentRequests", fields: [fromId], references: [id], onDelete: Cascade)
+  to   User @relation("ReceivedRequests", fields: [toId], references: [id], onDelete: Cascade)
+
+  @@unique([fromId, toId])
+  @@index([toId, status])
+}
+
+model InviteLink {
+  id        String    @id @default(cuid())
+  code      String    @unique
+  creatorId String
+  /// Null = never expires.
+  expiresAt DateTime?
+  /// Null = unlimited.
+  maxUses   Int?
+  uses      Int       @default(0)
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  creator     User               @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  redemptions InviteRedemption[]
+
+  @@index([creatorId])
+}
+
+model InviteRedemption {
+  inviteId  String
+  userId    String
+  createdAt DateTime @default(now())
+
+  invite InviteLink @relation(fields: [inviteId], references: [id], onDelete: Cascade)
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([inviteId, userId])
 }
 
 /// External identity linked to a user (Steam, Discord).

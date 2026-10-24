@@ -1,29 +1,6 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+import { login, logout, register, uid } from "./helpers";
 import { latestLink } from "./mail";
-
-const uid = () => `e2e_${Date.now().toString(36)}${Math.floor(Math.random() * 1000)}`;
-
-async function register(page: Page, username: string, password = "password123") {
-  await page.goto("/register");
-  await page.getByLabel("用户名").fill(username);
-  await page.getByLabel("昵称").fill(`测试${username.slice(-4)}`);
-  await page.getByLabel("邮箱").fill(`${username}@example.test`);
-  await page.getByLabel("密码").fill(password);
-  await page.getByRole("button", { name: "注册" }).click();
-  await expect(page.getByRole("heading", { name: /欢迎/ })).toBeVisible();
-}
-
-async function logout(page: Page) {
-  await page.getByRole("button", { name: "退出" }).click();
-  await expect(page).toHaveURL(/\/login$/);
-}
-
-async function login(page: Page, identifier: string, password: string) {
-  await page.goto("/login");
-  await page.getByLabel("用户名或邮箱").fill(identifier);
-  await page.getByLabel("密码").fill(password);
-  await page.getByRole("button", { name: "登录", exact: true }).click();
-}
 
 test("register, see friend code, logout, log back in by username and email", async ({ page }) => {
   const username = uid();
