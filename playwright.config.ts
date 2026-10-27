@@ -5,6 +5,12 @@ import { defineConfig, devices } from "@playwright/test";
 //
 // With BASE_PATH set (e.g. /game-vote) only e2e/base-path.spec.ts runs, against
 // a build served under that sub-path; the other specs assume the site root.
+// Local runs read DATABASE_URL etc. from .env (tests seed data directly); in CI
+// everything comes from the job environment. Existing variables win.
+try {
+  process.loadEnvFile(".env");
+} catch {}
+
 const basePath = process.env.BASE_PATH ?? "";
 
 export default defineConfig({

@@ -1,4 +1,5 @@
 import { JoinRequestStatus } from "@prisma/client";
+import { postSystemMessage } from "@/lib/chat/service";
 import { db } from "@/lib/db";
 import { friendPair } from "@/lib/friends/rules";
 import { listFriends, publicUser, type PublicUser } from "@/lib/friends/service";
@@ -8,10 +9,24 @@ export class GroupError extends Error {}
 
 const activeGroup = (groupId: string) => ({ id: groupId, dissolvedAt: null });
 
+async function nameOf(userId: string): Promise<string> {
+  const u = await db.user.findUnique({ where: { id: userId }, select: { displayName: true } });
+  return u?.displayName ?? "某人";
+}
+
 export async function createGroup(ownerId: string, info: { name: string; description: string }) {
-  return db.group.create({
+  const group = await db.group.create({
     data: { ...info, ownerId, members: { create: { userId: ownerId } } },
   });
+  await postSystemMessage(group.id, `${await nameOf(ownerId)} 创建了群`, [ownerId]);
+  return group;
+}
+
+export async function isActiveMember(groupId: string, userId: string): Promise<boolean> {
+  const n = await db.groupMember.count({
+    where: { groupId, userId, group: { dissolvedAt: null } },
+  });
+  return n > 0;
 }
 
 export async function listMyGroups(userId: string) {
@@ -124,6 +139,11 @@ export async function inviteToGroup(
           },
         }),
       ]);
+      await postSystemMessage(
+        groupId,
+        `${await nameOf(inviterId)} 邀请 ${await nameOf(inviteeId)} 加入了群`,
+        [inviterId, inviteeId],
+      );
     } else if (outcome === "requested") {
       await db.groupJoinRequest.create({
         data: { groupId, userId: inviteeId, invitedById: inviterId },
@@ -160,6 +180,13 @@ export async function decideJoinRequest(
       });
     }
   });
+  if (approve) {
+    await postSystemMessage(
+      groupId,
+      `${await nameOf(req.userId)} 加入了群（由 ${await nameOf(req.invitedById)} 邀请）`,
+      [ownerId, req.userId],
+    );
+  }
 }
 
 /** The member who invited can withdraw their own pending request. */
@@ -175,13 +202,16 @@ export async function cancelJoinRequest(groupId: string, userId: string, request
 export async function removeMember(groupId: string, ownerId: string, memberId: string) {
   await requireOwner(groupId, ownerId);
   if (memberId === ownerId) throw new GroupError("群主不能移除自己");
-  await db.groupMember.deleteMany({ where: { groupId, userId: memberId } });
+  const { count } = await db.groupMember.deleteMany({ where: { groupId, userId: memberId } });
+  if (count)
+    await postSystemMessage(groupId, `${await nameOf(memberId)} 被群主移出了群`, [ownerId]);
 }
 
 export async function leaveGroup(groupId: string, userId: string) {
   const group = await requireMember(groupId, userId);
   if (group.ownerId === userId) throw new GroupError("群主需要先转让群主才能退群");
   await db.groupMember.deleteMany({ where: { groupId, userId } });
+  await postSystemMessage(groupId, `${await nameOf(userId)} 退出了群`);
 }
 
 export async function transferOwnership(groupId: string, ownerId: string, newOwnerId: string) {
@@ -191,6 +221,11 @@ export async function transferOwnership(groupId: string, ownerId: string, newOwn
   });
   if (!member || newOwnerId === ownerId) throw new GroupError("只能转让给其他群成员");
   await db.group.update({ where: { id: groupId }, data: { ownerId: newOwnerId } });
+  await postSystemMessage(
+    groupId,
+    `${await nameOf(ownerId)} 把群主转让给了 ${await nameOf(newOwnerId)}`,
+    [ownerId],
+  );
 }
 
 export async function updateGroupInfo(
@@ -198,8 +233,13 @@ export async function updateGroupInfo(
   ownerId: string,
   info: { name: string; description: string },
 ) {
-  await requireOwner(groupId, ownerId);
+  const group = await requireOwner(groupId, ownerId);
   await db.group.update({ where: { id: groupId }, data: info });
+  if (group.name !== info.name) {
+    await postSystemMessage(groupId, `${await nameOf(ownerId)} 把群名改为「${info.name}」`, [
+      ownerId,
+    ]);
+  }
 }
 
 export async function dissolveGroup(groupId: string, ownerId: string) {

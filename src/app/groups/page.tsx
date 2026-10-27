@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CreateGroupForm } from "@/components/groups";
 import { Alert, Card } from "@/components/ui";
 import { requireUser } from "@/lib/auth/session";
+import { unreadCounts } from "@/lib/chat/service";
 import { listMyGroups } from "@/lib/groups/service";
 
 export const metadata = { title: "群组 · Game Vote" };
@@ -13,7 +14,7 @@ export default async function GroupsPage({
 }) {
   const user = await requireUser();
   const params = await searchParams;
-  const groups = await listMyGroups(user.id);
+  const [groups, unread] = await Promise.all([listMyGroups(user.id), unreadCounts(user.id)]);
 
   return (
     <main className="mx-auto max-w-3xl space-y-6 px-4 py-8">
@@ -37,11 +38,18 @@ export default async function GroupsPage({
                 >
                   <div className="flex items-start justify-between gap-2">
                     <p className="truncate font-semibold">{g.name}</p>
-                    {g.pendingCount > 0 && (
-                      <span className="shrink-0 rounded-full bg-red-500 px-2 text-xs leading-5 text-white">
-                        {g.pendingCount} 待审批
-                      </span>
-                    )}
+                    <span className="flex shrink-0 gap-1">
+                      {(unread[g.id] ?? 0) > 0 && (
+                        <span className="rounded-full bg-indigo-600 px-2 text-xs leading-5 text-white">
+                          {unread[g.id]} 条未读
+                        </span>
+                      )}
+                      {g.pendingCount > 0 && (
+                        <span className="rounded-full bg-red-500 px-2 text-xs leading-5 text-white">
+                          {g.pendingCount} 待审批
+                        </span>
+                      )}
+                    </span>
                   </div>
                   {g.description && (
                     <p className="mt-1 line-clamp-2 text-sm text-zinc-500">{g.description}</p>
