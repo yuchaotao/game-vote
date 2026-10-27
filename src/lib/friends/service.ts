@@ -7,7 +7,7 @@ import { env } from "@/lib/env";
 import { redis } from "@/lib/redis";
 import { friendPair, inviteStatus, type InviteStatus } from "./rules";
 
-const publicUser = {
+export const publicUser = {
   id: true,
   username: true,
   friendTag: true,

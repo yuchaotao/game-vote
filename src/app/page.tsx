@@ -48,7 +48,13 @@ export default async function Home() {
           去添加好友 →
         </Link>
       </p>
-      <p className="text-sm text-zinc-500">群组与投票功能即将上线。</p>
+      <p className="text-zinc-600 dark:text-zinc-400">
+        <Link href="/groups" className="text-indigo-600 hover:underline">
+          去群组 →
+        </Link>{" "}
+        建一个群，拉好友进来。
+      </p>
+      <p className="text-sm text-zinc-500">群聊天、游戏库和投票功能即将上线。</p>
     </main>
   );
 }
