@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { env } from "@/lib/env";
+import { absoluteUrl } from "@/lib/urls";
 import { finishOAuth } from "@/lib/auth/oauth-state";
 import { createSession, getCurrentUser } from "@/lib/auth/session";
 import { getSteamPlayer, verifySteamAssertion } from "@/lib/auth/steam";
@@ -13,15 +14,15 @@ import { inviteCodeFromPath } from "@/lib/friends/rules";
 import { redeemInvite } from "@/lib/friends/service";
 
 export async function GET(req: NextRequest) {
-  const { APP_URL, STEAM_API_KEY } = env();
-  const to = (path: string) => NextResponse.redirect(new URL(path, APP_URL));
+  const { STEAM_API_KEY } = env();
+  const to = (path: string) => NextResponse.redirect(absoluteUrl(path));
   const query = req.nextUrl.searchParams;
 
   const oauth = await finishOAuth("steam", query.get("state"));
   if (!oauth) return to("/login?error=oauth_state");
   const { intent, next } = oauth;
 
-  const steamId = await verifySteamAssertion(query, `${APP_URL}/api/auth/steam/callback`);
+  const steamId = await verifySteamAssertion(query, absoluteUrl("/api/auth/steam/callback"));
   if (!steamId)
     return to(intent === "link" ? "/settings?error=steam_failed" : "/login?error=steam_failed");
 

@@ -1,3 +1,4 @@
+import { absoluteUrl, withBase } from "@/lib/urls";
 import QRCode from "qrcode";
 import {
   AddFriendForm,
@@ -12,7 +13,6 @@ import {
 import { Alert, Avatar, buttonClass, Card, SteamIcon } from "@/components/ui";
 import { requireUser } from "@/lib/auth/session";
 import { formatFriendCode } from "@/lib/auth/validation";
-import { env } from "@/lib/env";
 import type { InviteStatus } from "@/lib/friends/rules";
 import {
   listFriends,
@@ -74,10 +74,9 @@ export default async function FriendsPage({
     steamSuggestions(user.id),
   ]);
 
-  const appUrl = env().APP_URL;
   const inviteRows = await Promise.all(
     invites.map(async (i) => {
-      const url = `${appUrl}/invite/${i.code}`;
+      const url = absoluteUrl(`/invite/${i.code}`);
       const parts = [
         STATUS_TEXT[i.status],
         i.maxUses === null ? `已用 ${i.uses} 次` : `已用 ${i.uses}/${i.maxUses} 次`,
@@ -204,7 +203,7 @@ export default async function FriendsPage({
             <p className="text-sm text-zinc-500">
               绑定 Steam 后，可以找到已注册本站的 Steam 好友。
             </p>
-            <a href="/api/auth/steam?intent=link" className={buttonClass("steam")}>
+            <a href={withBase("/api/auth/steam?intent=link")} className={buttonClass("steam")}>
               绑定 Steam
             </a>
           </div>

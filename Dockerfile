@@ -10,11 +10,15 @@ RUN npm ci
 
 FROM deps AS build
 COPY . .
-ENV NEXT_TELEMETRY_DISABLED=1
+# Sub-path to serve under (e.g. /game-vote); baked in at build time.
+ARG BASE_PATH=""
+ENV NEXT_TELEMETRY_DISABLED=1 BASE_PATH=${BASE_PATH}
 RUN npx prisma generate && npm run build
 
 FROM base AS runner
-ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000
+# next start re-reads next.config.ts, so the base path must match the build.
+ARG BASE_PATH=""
+ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 BASE_PATH=${BASE_PATH}
 COPY --from=build /app ./
 EXPOSE 3000
 CMD ["npm", "run", "start"]

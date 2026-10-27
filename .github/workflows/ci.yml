@@ -23,6 +23,12 @@ jobs:
       - run: npm run build
 
   e2e:
+    name: e2e (${{ matrix.base_path || 'site root' }})
+    strategy:
+      fail-fast: false
+      matrix:
+        # "" runs the full suite at the site root; a sub-path runs e2e/base-path.spec.ts
+        base_path: ["", "/game-vote"]
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -41,7 +47,8 @@ jobs:
         image: axllent/mailpit:v1.27
         ports: ["1025:1025", "8025:8025"]
     env:
-      APP_URL: http://localhost:3000
+      APP_URL: http://localhost:3000${{ matrix.base_path }}
+      BASE_PATH: ${{ matrix.base_path }}
       DATABASE_URL: postgresql://gamevote:gamevote@localhost:5432/gamevote
       REDIS_URL: redis://localhost:6379
       SESSION_SECRET: ci-only-session-secret-0123456789abcdef
@@ -62,7 +69,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: playwright-report
+          name: playwright-report${{ matrix.base_path && '-subpath' || '' }}
           path: |
             playwright-report/
             test-results/
