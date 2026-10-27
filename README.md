@@ -8,6 +8,8 @@
 - 投票轮次、历史回放，自动检测一起游玩并提示开启新投票
 - 邮件 / Discord / Steam 通知
 
+线上地址：https://www.yuchaotao.com/game-vote（部署说明见 [deploy/README.md](deploy/README.md)）
+
 详细设计见 [docs/DESIGN.md](docs/DESIGN.md)。开发进度见 [Issues](../../issues)。
 
 ## 本地开发
