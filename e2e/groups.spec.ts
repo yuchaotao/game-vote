@@ -1,43 +1,9 @@
-import { expect, test, type Browser, type Page } from "@playwright/test";
-import { friendCodeOf, mainAlert, mainStatus, register, uid, visitor } from "./helpers";
+import { expect, test, type Page } from "@playwright/test";
+import { mainAlert, mainStatus, uid } from "./helpers";
+import { befriend, createGroup, inviteToGroup as invite, newUser, type User } from "./social";
 
 // Each test signs up several users and befriends them; allow time on slow dev machines.
 test.describe.configure({ timeout: 180_000 });
-
-type User = { page: Page; name: string; code: string };
-
-async function newUser(browser: Browser): Promise<User> {
-  const page = await visitor(browser);
-  const username = uid();
-  await register(page, username);
-  return { page, name: `测试${username.slice(-4)}`, code: await friendCodeOf(page) };
-}
-
-async function befriend(a: User, b: User) {
-  await a.page.goto("/friends");
-  await a.page.getByLabel("好友码").fill(b.code);
-  await a.page.getByRole("button", { name: "发送申请" }).click();
-  await expect(mainStatus(a.page)).toBeVisible();
-  await b.page.goto("/friends");
-  await b.page.getByRole("button", { name: "接受" }).click();
-  await expect(b.page.getByRole("heading", { name: /收到的申请/ })).toHaveCount(0);
-}
-
-async function createGroup(owner: User, name: string): Promise<string> {
-  await owner.page.goto("/groups");
-  await owner.page.getByLabel("群名").fill(name);
-  await owner.page.getByLabel("简介（可选）").fill("周末一起玩");
-  await owner.page.getByRole("button", { name: "创建群" }).click();
-  await expect(owner.page.getByRole("heading", { level: 1, name })).toBeVisible();
-  return new URL(owner.page.url()).pathname;
-}
-
-async function invite(inviter: User, groupPath: string, friend: User) {
-  await inviter.page.goto(groupPath);
-  await inviter.page.getByRole("checkbox", { name: friend.name }).check();
-  await inviter.page.getByRole("button", { name: "邀请", exact: true }).click();
-  await expect(mainStatus(inviter.page).first()).toBeVisible();
-}
 
 const members = (page: Page) => page.getByRole("list", { name: "成员列表" });
 
