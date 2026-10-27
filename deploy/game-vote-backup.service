@@ -1,0 +1,8 @@
+[Unit]
+Description=Back up the Game Vote production database
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/game-vote/deploy/backup.sh
