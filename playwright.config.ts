@@ -2,8 +2,14 @@ import { defineConfig, devices } from "@playwright/test";
 
 // End-to-end tests. Needs postgres + redis running and migrations applied.
 // CI runs against a production build; locally a dev server is started (or reused).
+//
+// With BASE_PATH set (e.g. /game-vote) only e2e/base-path.spec.ts runs, against
+// a build served under that sub-path; the other specs assume the site root.
+const basePath = process.env.BASE_PATH ?? "";
+
 export default defineConfig({
   testDir: "e2e",
+  ...(basePath ? { testMatch: "base-path.spec.ts" } : { testIgnore: "base-path.spec.ts" }),
   globalSetup: "./e2e/global-setup.ts",
   fullyParallel: false,
   retries: process.env.CI ? 1 : 0,
@@ -19,7 +25,7 @@ export default defineConfig({
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
     command: process.env.CI ? "npm run start" : "npx next dev -p 3000",
-    url: "http://localhost:3000/api/health",
+    url: `http://localhost:3000${basePath}/api/health`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },

@@ -1,3 +1,4 @@
+import { withBase } from "@/lib/urls";
 import Link from "next/link";
 import { LoginForm } from "@/components/auth-forms";
 import { Alert, buttonClass, Card, DiscordIcon, SteamIcon } from "@/components/ui";
@@ -24,13 +25,13 @@ export default async function LoginPage({
 
       <div className="space-y-2">
         <a
-          href={`/api/auth/steam?intent=login${nextQuery}`}
+          href={withBase(`/api/auth/steam?intent=login${nextQuery}`)}
           className={buttonClass("steam", "w-full")}
         >
           <SteamIcon /> 通过 Steam 登录
         </a>
         <a
-          href={`/api/auth/discord?intent=login${nextQuery}`}
+          href={withBase(`/api/auth/discord?intent=login${nextQuery}`)}
           className={buttonClass("discord", "w-full")}
         >
           <DiscordIcon /> 通过 Discord 登录

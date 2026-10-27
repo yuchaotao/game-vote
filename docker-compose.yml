@@ -41,7 +41,10 @@ services:
 
   web:
     profiles: ["app"]
-    build: .
+    build:
+      context: .
+      args:
+        BASE_PATH: ${BASE_PATH:-}
     image: game-vote:local
     restart: unless-stopped
     env_file: .env

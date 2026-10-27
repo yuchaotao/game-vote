@@ -1,3 +1,4 @@
+import { withBase } from "@/lib/urls";
 import Link from "next/link";
 import { RegisterForm } from "@/components/auth-forms";
 import { Alert, buttonClass, Card, SteamIcon } from "@/components/ui";
@@ -30,7 +31,7 @@ export default async function RegisterPage({
       )}
 
       <a
-        href={`/api/auth/steam?intent=login${nextQuery}`}
+        href={withBase(`/api/auth/steam?intent=login${nextQuery}`)}
         className={buttonClass("steam", "w-full")}
       >
         <SteamIcon /> 用 Steam 账号直接注册

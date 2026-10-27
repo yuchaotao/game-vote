@@ -1,7 +1,7 @@
 import { AuthTokenType, Prisma, type User } from "@prisma/client";
 import { db } from "@/lib/db";
-import { env } from "@/lib/env";
 import { sendMail } from "@/lib/mail";
+import { absoluteUrl } from "@/lib/urls";
 import { randomFriendTag, randomToken, sha256 } from "./crypto";
 import { usernameFromText } from "./validation";
 
@@ -170,7 +170,7 @@ export async function sendVerificationEmail(user: {
   displayName: string;
 }) {
   const token = await issueToken(user.id, AuthTokenType.EMAIL_VERIFY);
-  const url = `${env().APP_URL}/verify-email?token=${token}`;
+  const url = absoluteUrl(`/verify-email?token=${token}`);
   await sendMail({
     to: user.email,
     subject: "Game Vote：验证你的邮箱",
@@ -184,7 +184,7 @@ export async function sendPasswordResetEmail(user: {
   displayName: string;
 }) {
   const token = await issueToken(user.id, AuthTokenType.PASSWORD_RESET);
-  const url = `${env().APP_URL}/reset-password?token=${token}`;
+  const url = absoluteUrl(`/reset-password?token=${token}`);
   await sendMail({
     to: user.email,
     subject: "Game Vote：重置密码",

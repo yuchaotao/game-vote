@@ -1,13 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { env } from "@/lib/env";
+import { absoluteUrl } from "@/lib/urls";
 import { discordAvatarUrl, exchangeDiscordCode } from "@/lib/auth/discord";
 import { finishOAuth } from "@/lib/auth/oauth-state";
 import { createSession, getCurrentUser } from "@/lib/auth/session";
 import { findUserByAccount, linkAccount } from "@/lib/auth/users";
 
 export async function GET(req: NextRequest) {
-  const { APP_URL, DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET } = env();
-  const to = (path: string) => NextResponse.redirect(new URL(path, APP_URL));
+  const { DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET } = env();
+  const to = (path: string) => NextResponse.redirect(absoluteUrl(path));
   const query = req.nextUrl.searchParams;
 
   const oauth = await finishOAuth("discord", query.get("state"));
@@ -22,7 +23,7 @@ export async function GET(req: NextRequest) {
   const discordUser = await exchangeDiscordCode(code, {
     clientId: DISCORD_CLIENT_ID,
     clientSecret: DISCORD_CLIENT_SECRET,
-    redirectUri: `${APP_URL}/api/auth/discord/callback`,
+    redirectUri: absoluteUrl("/api/auth/discord/callback"),
   });
   if (!discordUser) return to(`${failPage}?error=discord_failed`);
 

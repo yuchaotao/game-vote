@@ -1,3 +1,4 @@
+import { withBase } from "@/lib/urls";
 import { EmailForm, PasswordForm, ProfileForm, UnlinkButton } from "@/components/auth-forms";
 import { Alert, Avatar, buttonClass, Card, DiscordIcon, SteamIcon } from "@/components/ui";
 import { AUTH_ERRORS, LINKED_MESSAGES, pick } from "@/lib/auth/messages";
@@ -76,7 +77,7 @@ export default async function SettingsPage({
                 {account ? (
                   <UnlinkButton provider={p.id} />
                 ) : (
-                  <a href={`/api/auth/${p.id}?intent=link`} className={buttonClass(p.id)}>
+                  <a href={withBase(`/api/auth/${p.id}?intent=link`)} className={buttonClass(p.id)}>
                     绑定
                   </a>
                 )}
