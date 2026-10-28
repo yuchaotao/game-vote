@@ -11,6 +11,9 @@ test("signed out, the home page pitches the site and signs you in", async ({ pag
   await expect(page.getByRole("heading", { level: 1 })).toContainText("今晚玩什么？");
   await expect(page.getByRole("figure", { name: "投票示例" })).toBeVisible();
   await expect(page.getByRole("link", { name: "通过 Steam 登录" })).toBeVisible();
+  // Buttons look clickable (Tailwind v4 dropped the pointer cursor, #43).
+  const submit = page.getByRole("button", { name: "登录", exact: true });
+  expect(await submit.evaluate((el) => getComputedStyle(el).cursor)).toBe("pointer");
 
   await submitLogin(page, username, "password123");
   // No group yet: the getting-started page.
