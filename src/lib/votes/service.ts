@@ -2,7 +2,7 @@ import { Prisma, VoteEndReason, VoteEventKind, VoteRoundStatus } from "@prisma/c
 import IORedis from "ioredis";
 import { postSystemMessage } from "@/lib/chat/service";
 import { db } from "@/lib/db";
-import { notify } from "@/lib/notify/service";
+import { notifyGroup } from "@/lib/notify/service";
 import { env } from "@/lib/env";
 import { publicUser } from "@/lib/friends/service";
 import { getLibraryEntry } from "@/lib/games/service";
@@ -117,19 +117,14 @@ export async function startRound(
   return round;
 }
 
-/** Notifies every member of the group except `exceptUserId`. */
+/** Notifies every member of the group except `exceptUserId` (by email, DM or the group's channel). */
 export async function notifyMembers(
   groupId: string,
   exceptUserId: string | null,
   event: "NEW_ROUND" | "VOTE_PROMPT",
   content: (groupName: string) => { title: string; body: string; path: string },
 ) {
-  const group = await db.group.findUniqueOrThrow({
-    where: { id: groupId },
-    select: { name: true, members: { select: { userId: true } } },
-  });
-  const to = group.members.map((m) => m.userId).filter((id) => id !== exceptUserId);
-  await notify(event, to, content(group.name));
+  await notifyGroup(event, groupId, exceptUserId, content);
 }
 
 async function openRound(groupId: string, roundId: string) {
