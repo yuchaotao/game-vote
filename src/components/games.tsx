@@ -5,15 +5,17 @@ import { useActionState, useEffect, useMemo, useState, useTransition } from "rea
 import type { Game } from "@prisma/client";
 import type { FormState } from "@/lib/auth/actions";
 import {
+  addIgdbGameAction,
   addManualGameAction,
   addSteamGameAction,
+  lookupIgdbAction,
   lookupSteamAction,
   refreshGameAction,
   removeFromLibraryAction,
   updateManualGameAction,
 } from "@/lib/games/actions";
 import { formatPrice, normalizeGameName, sortLibrary, type LibrarySort } from "@/lib/games/rules";
-import type { LibraryEntry, SteamLookup } from "@/lib/games/service";
+import type { IgdbLookup, LibraryEntry, SteamLookup } from "@/lib/games/service";
 import { Alert, Avatar, Button, Field } from "./ui";
 
 function Status({ state }: { state: FormState }) {
@@ -82,6 +84,7 @@ type GameInfo = Pick<
   | "reviewCount"
   | "reviewLabel"
   | "metacritic"
+  | "source"
 >;
 
 export function ReviewSummary({ game }: { game: GameInfo }) {
@@ -94,10 +97,12 @@ export function ReviewSummary({ game }: { game: GameInfo }) {
           : "text-red-600 dark:text-red-400";
     return (
       <span className={`text-sm font-medium ${tone}`}>
-        {game.reviewLabel ?? "好评率"} {game.reviewPercent}%
+        {game.reviewLabel ?? "好评率"} {game.reviewPercent}
+        {game.source === "IGDB" ? "" : "%"}
         {game.reviewCount !== null && (
           <span className="ml-1 font-normal text-zinc-500">
-            （{game.reviewCount.toLocaleString("zh-CN")} 篇评测）
+            （{game.reviewCount.toLocaleString("zh-CN")}{" "}
+            {game.source === "IGDB" ? "人评分" : "篇评测"}）
           </span>
         )}
       </span>
@@ -248,109 +253,163 @@ export function GameLibrary({ groupId, entries }: { groupId: string; entries: Li
   );
 }
 
-function SteamResults({
-  groupId,
-  lookup,
-  onAdded,
+type ResultItem = {
+  key: string;
+  name: string;
+  imageUrl: string | null;
+  detail: string | null;
+  note?: string;
+  added: boolean;
+};
+
+/** Search results with an "add" button each (Steam or IGDB). */
+function ResultList({
+  label,
+  items,
+  empty,
+  onAdd,
 }: {
-  groupId: string;
-  lookup: SteamLookup;
-  onAdded: (appId: string, message: string) => void;
+  label: string;
+  items: ResultItem[];
+  empty: string;
+  onAdd: (key: string) => Promise<FormState>;
 }) {
   const [pending, start] = useTransition();
   const [busy, setBusy] = useState<string>();
   const [error, setError] = useState<string>();
-  if (lookup.results.length === 0) {
-    return (
-      <p className="text-sm text-zinc-500">
-        Steam 上没有找到相关游戏，可以试试英文名，或手动添加。
-      </p>
-    );
-  }
+  if (items.length === 0) return <p className="text-sm text-zinc-500">{empty}</p>;
   return (
     <div className="space-y-2">
       {error && <Alert kind="error">{error}</Alert>}
-      <ul aria-label="Steam 搜索结果" className="divide-y divide-zinc-100 dark:divide-zinc-800">
-        {lookup.results.map((r) => {
-          const added = lookup.inLibrary.includes(r.appId);
-          return (
-            <li key={r.appId} className="flex items-center gap-3 py-2">
-              <GameCover
-                src={r.imageUrl}
-                name={r.name}
-                className="h-10 w-[86px] shrink-0 rounded text-base"
-              />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{r.name}</p>
-                {r.priceFinal !== null && r.priceCurrency && (
-                  <p className="text-xs text-zinc-500">
-                    {formatPrice(r.priceFinal, r.priceCurrency)}
-                  </p>
-                )}
-              </div>
-              {added ? (
-                <span className="text-xs text-zinc-500">已在库中</span>
-              ) : (
-                <Button
-                  type="button"
-                  className="px-3 py-1.5"
-                  aria-label={`添加 ${r.name}`}
-                  disabled={pending}
-                  onClick={() => {
-                    setBusy(r.appId);
-                    start(async () => {
-                      const res = await addSteamGameAction(groupId, r.appId);
-                      setBusy(undefined);
-                      if (res?.error) setError(res.error);
-                      else {
-                        setError(undefined);
-                        onAdded(r.appId, res?.ok ?? "已添加");
-                      }
-                    });
-                  }}
-                >
-                  {busy === r.appId ? "添加中…" : "添加"}
-                </Button>
+      <ul aria-label={label} className="divide-y divide-zinc-100 dark:divide-zinc-800">
+        {items.map((r) => (
+          <li key={r.key} className="flex items-center gap-3 py-2">
+            <GameCover
+              src={r.imageUrl}
+              name={r.name}
+              className="h-10 w-[86px] shrink-0 rounded text-base"
+            />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium">{r.name}</p>
+              {(r.detail || r.note) && (
+                <p className="truncate text-xs text-zinc-500">
+                  {r.detail}
+                  {r.note && <span className="ml-2 text-sky-600 dark:text-sky-400">{r.note}</span>}
+                </p>
               )}
-            </li>
-          );
-        })}
+            </div>
+            {r.added ? (
+              <span className="text-xs text-zinc-500">已在库中</span>
+            ) : (
+              <Button
+                type="button"
+                className="px-3 py-1.5"
+                aria-label={`添加 ${r.name}`}
+                disabled={pending}
+                onClick={() => {
+                  setBusy(r.key);
+                  start(async () => {
+                    const res = await onAdd(r.key);
+                    setBusy(undefined);
+                    setError(res?.error);
+                  });
+                }}
+              >
+                {busy === r.key ? "添加中…" : "添加"}
+              </Button>
+            )}
+          </li>
+        ))}
       </ul>
     </div>
   );
 }
 
-export function AddGamePanel({ groupId }: { groupId: string }) {
+type Source = "steam" | "igdb";
+
+const SOURCES: Record<Source, { tab: string; label: string; placeholder: string }> = {
+  steam: {
+    tab: "Steam",
+    label: "搜索 Steam 或粘贴链接",
+    placeholder: "搜索 Steam，或粘贴 Steam 商店链接",
+  },
+  igdb: {
+    tab: "其他平台（IGDB）",
+    label: "搜索 IGDB",
+    placeholder: "搜索 EA、Battle.net、主机等平台的游戏（英文名更准）",
+  },
+};
+
+export function AddGamePanel({ groupId, igdb }: { groupId: string; igdb: boolean }) {
+  const [source, setSource] = useState<Source>("steam");
   const [query, setQuery] = useState("");
-  const [lookup, setLookup] = useState<SteamLookup>();
+  const [steam, setSteam] = useState<SteamLookup>();
+  const [igdbLookup, setIgdbLookup] = useState<IgdbLookup>();
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
   const [manual, setManual] = useState(false);
   const [pending, start] = useTransition();
 
+  const switchTo = (s: Source) => {
+    setSource(s);
+    setError(undefined);
+    setNotice(undefined);
+  };
+
+  const added = (res: FormState, mark: () => void) => {
+    if (res?.ok) {
+      setNotice(res.ok);
+      mark();
+    }
+    return res;
+  };
+
   return (
     <section className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-      <h2 className="font-semibold">添加游戏</h2>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="font-semibold">添加游戏</h2>
+        {igdb && (
+          <div role="tablist" aria-label="游戏来源" className="flex gap-1 text-sm">
+            {(Object.keys(SOURCES) as Source[]).map((s) => (
+              <button
+                key={s}
+                type="button"
+                role="tab"
+                aria-selected={source === s}
+                onClick={() => switchTo(s)}
+                className={`rounded-lg px-3 py-1 ${
+                  source === s
+                    ? "bg-indigo-600 text-white"
+                    : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                }`}
+              >
+                {SOURCES[s].tab}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
       <form
         className="flex gap-2"
         onSubmit={(e) => {
           e.preventDefault();
           setNotice(undefined);
           start(async () => {
-            const res = await lookupSteamAction(groupId, query);
-            if ("error" in res) {
-              setError(res.error);
-              setLookup(undefined);
+            if (source === "steam") {
+              const res = await lookupSteamAction(groupId, query);
+              setError("error" in res ? res.error : undefined);
+              setSteam("error" in res ? undefined : res);
             } else {
-              setError(undefined);
-              setLookup(res);
+              const res = await lookupIgdbAction(groupId, query);
+              setError("error" in res ? res.error : undefined);
+              setIgdbLookup("error" in res ? undefined : res);
             }
           });
         }}
       >
         <input
-          aria-label="搜索 Steam 或粘贴链接"
-          placeholder="搜索 Steam，或粘贴 Steam 商店链接"
+          aria-label={SOURCES[source].label}
+          placeholder={SOURCES[source].placeholder}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           className={textareaClass}
@@ -361,14 +420,44 @@ export function AddGamePanel({ groupId }: { groupId: string }) {
       </form>
       {notice && <Alert kind="ok">{notice}</Alert>}
       {error && <Alert kind="error">{error}</Alert>}
-      {lookup && (
-        <SteamResults
-          groupId={groupId}
-          lookup={lookup}
-          onAdded={(appId, message) => {
-            setNotice(message);
-            setLookup({ ...lookup, inLibrary: [...lookup.inLibrary, appId] });
-          }}
+      {source === "steam" && steam && (
+        <ResultList
+          label="Steam 搜索结果"
+          empty="Steam 上没有找到相关游戏，可以试试英文名、其他平台搜索，或手动添加。"
+          items={steam.results.map((r) => ({
+            key: r.appId,
+            name: r.name,
+            imageUrl: r.imageUrl,
+            detail:
+              r.priceFinal !== null && r.priceCurrency
+                ? formatPrice(r.priceFinal, r.priceCurrency)
+                : null,
+            added: steam.inLibrary.includes(r.appId),
+          }))}
+          onAdd={async (appId) =>
+            added(await addSteamGameAction(groupId, appId), () =>
+              setSteam({ ...steam, inLibrary: [...steam.inLibrary, appId] }),
+            )
+          }
+        />
+      )}
+      {source === "igdb" && igdbLookup && (
+        <ResultList
+          label="IGDB 搜索结果"
+          empty="IGDB 上没有找到相关游戏，可以试试英文名，或手动添加。"
+          items={igdbLookup.results.map((r) => ({
+            key: r.igdbId,
+            name: r.name,
+            imageUrl: r.imageUrl,
+            detail: [r.year, r.platforms.join(" · ")].filter(Boolean).join("　") || null,
+            note: r.steamAppId ? "Steam 上也有，将按 Steam 版添加" : undefined,
+            added: igdbLookup.inLibrary.includes(r.igdbId),
+          }))}
+          onAdd={async (igdbId) =>
+            added(await addIgdbGameAction(groupId, igdbId), () =>
+              setIgdbLookup({ ...igdbLookup, inLibrary: [...igdbLookup.inLibrary, igdbId] }),
+            )
+          }
         />
       )}
       <div className="border-t border-zinc-100 pt-3 dark:border-zinc-800">
@@ -378,7 +467,7 @@ export function AddGamePanel({ groupId }: { groupId: string }) {
           onClick={() => setManual((m) => !m)}
           className="text-sm text-indigo-600 hover:underline"
         >
-          {manual ? "收起手动添加" : "不在 Steam 上？手动添加"}
+          {manual ? "收起手动添加" : "都找不到？手动添加"}
         </button>
         {manual && (
           <div className="mt-3">
@@ -498,14 +587,14 @@ export function GameDetailActions({
     <div className="space-y-3">
       <Status state={state} />
       <div className="flex flex-wrap gap-2">
-        {game.source === "STEAM" && (
+        {(game.source === "STEAM" || game.source === "IGDB") && (
           <Button
             type="button"
             variant="secondary"
             disabled={pending}
             onClick={() => run(() => refreshGameAction(groupId, game.id))}
           >
-            从 Steam 刷新资料
+            从 {game.source === "IGDB" ? "IGDB" : "Steam"} 刷新资料
           </Button>
         )}
         {canManage && game.source === "MANUAL" && (

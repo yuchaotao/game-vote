@@ -32,6 +32,9 @@ export const envSchema = z.object({
   MAIL_FROM: optional,
   IGDB_CLIENT_ID: optional,
   IGDB_CLIENT_SECRET: optional,
+  /** IGDB / Twitch endpoints; tests point these at e2e/steam-mock.mjs. */
+  IGDB_API_URL: z.string().url().default("https://api.igdb.com/v4"),
+  IGDB_TOKEN_URL: z.string().url().default("https://id.twitch.tv/oauth2/token"),
   STEAM_BOT_USERNAME: optional,
   STEAM_BOT_PASSWORD: optional,
 });

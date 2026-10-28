@@ -10,13 +10,17 @@ import { isActiveMember } from "@/lib/groups/service";
 import { manualGameSchema } from "./rules";
 import {
   addManualGame,
+  addIgdbGame,
   addSteamGame,
   GameError,
   getLibraryEntry,
+  lookupIgdb,
   lookupSteam,
+  refreshIgdbGame,
   refreshSteamGame,
   removeFromLibrary,
   updateManualGame,
+  type IgdbLookup,
   type SteamLookup,
 } from "./service";
 import { parseSteamAppId } from "./steam-store";
@@ -69,6 +73,32 @@ export async function addSteamGameAction(groupId: string, appId: string): Promis
   });
 }
 
+export async function lookupIgdbAction(
+  groupId: string,
+  raw: string,
+): Promise<IgdbLookup | { error: string }> {
+  const term = raw.trim().slice(0, 100);
+  if (!term) return { error: "请输入游戏名" };
+  return asMember(groupId, async (userId) => {
+    if (!(await rateLimit(`igdb-lookup:${userId}`, 30, 60))) {
+      throw new GameError("搜索太频繁了，请稍等");
+    }
+    return lookupIgdb(groupId, term);
+  });
+}
+
+export async function addIgdbGameAction(groupId: string, igdbId: string): Promise<FormState> {
+  if (!/^\d{1,12}$/.test(igdbId)) return { error: "无效的 IGDB 游戏" };
+  return asMember(groupId, async (userId) => {
+    if (!(await rateLimit(`game-add:${userId}`, 30, 600))) {
+      throw new GameError("添加太频繁了，请稍后再试");
+    }
+    const { game, viaSteam } = await addIgdbGame(groupId, userId, igdbId);
+    refresh(groupId);
+    return { ok: viaSteam ? `已按 Steam 版添加《${game.name}》` : `已添加《${game.name}》` };
+  });
+}
+
 export async function addManualGameAction(
   groupId: string,
   _: FormState,
@@ -115,9 +145,13 @@ export async function refreshGameAction(groupId: string, gameId: string): Promis
     if (!(await rateLimit(`game-refresh:${userId}`, 10, 600))) {
       throw new GameError("刷新太频繁了，请稍后再试");
     }
-    if (!(await getLibraryEntry(groupId, gameId))) throw new GameError("游戏不在这个群的游戏库里");
-    if (!(await refreshSteamGame(gameId))) throw new GameError("Steam 暂时无法访问，请稍后再试");
+    const entry = await getLibraryEntry(groupId, gameId);
+    if (!entry) throw new GameError("游戏不在这个群的游戏库里");
+    const from = entry.game.source === "IGDB" ? "IGDB" : "Steam";
+    const ok =
+      entry.game.source === "IGDB" ? await refreshIgdbGame(gameId) : await refreshSteamGame(gameId);
+    if (!ok) throw new GameError(`${from} 暂时无法访问，请稍后再试`);
     refresh(groupId);
-    return { ok: "已从 Steam 更新" };
+    return { ok: `已从 ${from} 更新` };
   });
 }
