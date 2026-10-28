@@ -1,14 +1,16 @@
 import { getCurrentUser } from "@/lib/auth/session";
 import { subscribe } from "@/lib/chat/service";
 import { isActiveMember } from "@/lib/groups/service";
+import { subscribeVotes } from "@/lib/votes/service";
 
 export const dynamic = "force-dynamic";
 
 const HEARTBEAT_MS = 25_000;
 
 /**
- * Server-Sent Events stream of a group's new chat messages.
- * GET /api/groups/:id/events  →  `event: message` with a ChatMessageDTO per message.
+ * Server-Sent Events stream of a group's live updates.
+ * GET /api/groups/:id/events  →  `event: message` with a ChatMessageDTO per message,
+ * and `event: votes` ({ roundId }) whenever a vote changes.
  */
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -31,11 +33,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       const unsubscribe = await subscribe(id, (message) => {
         send(`event: message\ndata: ${JSON.stringify(message)}\n\n`);
       });
+      // Vote pages refresh on these; the chat ignores them.
+      const unsubscribeVotes = await subscribeVotes(id, (data) => {
+        send(`event: votes\ndata: ${JSON.stringify(data)}\n\n`);
+      });
       // Comments keep proxies from closing an idle connection.
       const heartbeat = setInterval(() => send(": ping\n\n"), HEARTBEAT_MS);
       cleanup = async () => {
         clearInterval(heartbeat);
-        await unsubscribe();
+        await Promise.all([unsubscribe(), unsubscribeVotes()]);
       };
       req.signal.addEventListener("abort", () => {
         void cleanup?.();

@@ -1,5 +1,6 @@
 import { refreshStaleIgdbGames, refreshStaleSteamGames } from "@/lib/games/service";
 import { pollSteam, tickManualSessions } from "@/lib/play/service";
+import { closeDueRounds } from "@/lib/votes/service";
 import { QUEUE, WORKER_HEARTBEAT_KEY } from "@/lib/queues";
 import { redis } from "@/lib/redis";
 
@@ -34,6 +35,12 @@ export const JOBS = {
     queue: QUEUE.play,
     every: 2 * 60_000,
     run: async () => ({ steam: await pollSteam(), manual: await tickManualSessions() }),
+  },
+  // Votes with a deadline end on time (also checked whenever a round is viewed).
+  "close-due-rounds": {
+    queue: QUEUE.votes,
+    every: 60_000,
+    run: closeDueRounds,
   },
 } satisfies Record<string, Job>;
 
