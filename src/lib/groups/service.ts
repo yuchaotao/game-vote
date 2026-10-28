@@ -3,6 +3,8 @@ import { postSystemMessage } from "@/lib/chat/service";
 import { db } from "@/lib/db";
 import { friendPair } from "@/lib/friends/rules";
 import { listFriends, publicUser, type PublicUser } from "@/lib/friends/service";
+import { env } from "@/lib/env";
+import { listTextChannels, postToChannel } from "@/lib/notify/discord-bot";
 import { notify } from "@/lib/notify/service";
 import { inviteOutcome, type InviteOutcome } from "./rules";
 
@@ -274,4 +276,78 @@ export async function latestActiveGroupId(userId: string): Promise<string | null
     select: { groupId: true },
   });
   return membership?.groupId ?? null;
+}
+
+const channelLabel = (c: { name: string; server: string }) => `${c.server} · #${c.name}`;
+
+/** Text channels the bot can post in, for the owner's picker. */
+export async function discordChannelOptions(): Promise<
+  { options: { id: string; label: string }[] } | { error: string }
+> {
+  const e = env();
+  if (!e.DISCORD_BOT_TOKEN) return { error: "站点尚未配置 Discord 机器人。" };
+  try {
+    const channels = await listTextChannels({
+      apiUrl: e.DISCORD_API_URL,
+      token: e.DISCORD_BOT_TOKEN,
+    });
+    if (channels.length === 0) return { error: "机器人还没有加入任何 Discord 服务器。" };
+    return { options: channels.map((c) => ({ id: c.id, label: channelLabel(c) })) };
+  } catch (err) {
+    console.error("[discord] listing channels failed:", err);
+    return { error: "暂时无法读取 Discord 频道列表，请稍后再试。" };
+  }
+}
+
+/**
+ * Links the group's vote notifications to a Discord channel (null unlinks).
+ * The bot posts a confirmation first, so a channel it can't write to is refused.
+ */
+export async function setDiscordChannel(
+  groupId: string,
+  ownerId: string,
+  channelId: string | null,
+) {
+  const group = await requireOwner(groupId, ownerId);
+  if (!channelId) {
+    if (!group.discordChannelId) return;
+    await db.group.update({
+      where: { id: groupId },
+      data: { discordChannelId: null, discordChannelLabel: null },
+    });
+    await postSystemMessage(groupId, `${await nameOf(ownerId)} 取消了 Discord 频道通知`, [ownerId]);
+    return;
+  }
+  const e = env();
+  if (!e.DISCORD_BOT_TOKEN) throw new GroupError("站点尚未配置 Discord 机器人");
+  const opts = { apiUrl: e.DISCORD_API_URL, token: e.DISCORD_BOT_TOKEN };
+  const channel = (await listTextChannels(opts)).find((c) => c.id === channelId);
+  if (!channel) throw new GroupError("找不到这个频道，机器人可能已不在那个服务器");
+  try {
+    await postToChannel(opts, channel.id, {
+      content: `🎮 已连接 Game Vote 群「${group.name}」：新投票和投票提示会发到这个频道。`,
+    });
+  } catch (err) {
+    throw new GroupError(
+      `无法在 #${channel.name} 发消息：${err instanceof Error ? err.message : err}`,
+    );
+  }
+  await db.group.update({
+    where: { id: groupId },
+    data: { discordChannelId: channel.id, discordChannelLabel: channelLabel(channel) },
+  });
+  await postSystemMessage(
+    groupId,
+    `${await nameOf(ownerId)} 把投票通知连接到了 Discord 频道 ${channelLabel(channel)}`,
+    [ownerId],
+  );
+}
+
+/** The latest channel post for the group, for the owner to see whether it went out. */
+export function lastChannelPost(groupId: string) {
+  return db.notification.findFirst({
+    where: { groupId, channel: "DISCORD_CHANNEL" },
+    orderBy: { createdAt: "desc" },
+    select: { title: true, status: true, lastError: true, createdAt: true },
+  });
 }

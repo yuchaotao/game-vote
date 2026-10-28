@@ -8,11 +8,17 @@ import {
   LeaveGroupButton,
   MemberOwnerActions,
 } from "@/components/groups";
+import { DiscordChannelForm } from "@/components/discord-channel";
 import { AutoRefresh, CheckInCard, PresenceBadge, TogetherList } from "@/components/play";
 import { Avatar, Card } from "@/components/ui";
 import { requireUser } from "@/lib/auth/session";
 import { listLibrary } from "@/lib/games/service";
-import { getGroupForMember, invitableFriends } from "@/lib/groups/service";
+import {
+  discordChannelOptions,
+  getGroupForMember,
+  invitableFriends,
+  lastChannelPost,
+} from "@/lib/groups/service";
 import { groupTogether, openCheckIn, presenceFor } from "@/lib/play/service";
 
 export default async function GroupMembersPage({ params }: { params: Promise<{ id: string }> }) {
@@ -23,11 +29,13 @@ export default async function GroupMembersPage({ params }: { params: Promise<{ i
     invitableFriends(id, user.id),
   ]);
   if (!group) notFound();
-  const [presence, checkIn, together, library] = await Promise.all([
+  const [presence, checkIn, together, library, channels, lastPost] = await Promise.all([
     presenceFor(group.members.map((m) => m.user.id)),
     openCheckIn(user.id),
     groupTogether(id, { limit: 5 }),
     listLibrary(id),
+    group.isOwner ? discordChannelOptions() : null,
+    group.isOwner && group.discordChannelId ? lastChannelPost(id) : null,
   ]);
 
   const visibleRequests = group.isOwner
@@ -131,6 +139,29 @@ export default async function GroupMembersPage({ params }: { params: Promise<{ i
           <h2 className="text-lg font-semibold">群设置</h2>
           <GroupInfoForm groupId={id} name={group.name} description={group.description} />
         </Card>
+      )}
+
+      {group.isOwner ? (
+        <Card className="space-y-3">
+          <h2 className="text-lg font-semibold">Discord 频道通知</h2>
+          <DiscordChannelForm
+            groupId={id}
+            current={
+              group.discordChannelId
+                ? { id: group.discordChannelId, label: group.discordChannelLabel ?? "已连接的频道" }
+                : null
+            }
+            options={channels && "options" in channels ? channels.options : null}
+            unavailable={channels && "error" in channels ? channels.error : undefined}
+            last={lastPost}
+          />
+        </Card>
+      ) : (
+        group.discordChannelLabel && (
+          <p className="text-xs text-zinc-500">
+            本群的投票通知会发到 Discord 频道 {group.discordChannelLabel}。
+          </p>
+        )
       )}
 
       <div className="flex justify-end">

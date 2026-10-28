@@ -135,7 +135,7 @@ test("remove member, transfer ownership, leave, dissolve", async ({ browser }) =
   await b.page.goto(path);
   await expect(b.page.getByRole("heading", { name: "群设置" })).toBeVisible();
   await b.page.getByLabel("群名", { exact: true }).fill(`${groupName}改`);
-  await b.page.getByRole("button", { name: "保存" }).click();
+  await b.page.getByRole("button", { name: "保存", exact: true }).click();
   await expect(b.page.getByRole("heading", { level: 1, name: `${groupName}改` })).toBeVisible();
 
   b.page.once("dialog", (d) => d.accept());

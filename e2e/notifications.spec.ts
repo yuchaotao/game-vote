@@ -111,3 +111,58 @@ test("a Discord user the bot can't reach is a permanent failure", async ({ brows
   await expect(history).toContainText("发送失败");
   await expect(history).toContainText("需要和机器人在同一个 Discord 服务器");
 });
+
+async function channelMessages(channelId: string) {
+  const res = await fetch(`${mockUrl}/mock/discord/messages?channel=${channelId}`);
+  return (await res.json()) as {
+    content?: string;
+    embeds?: { title: string }[];
+    allowed_mentions?: { users: string[] };
+  }[];
+}
+
+test("with a Discord channel linked, group events go there and @mention members", async ({
+  browser,
+}) => {
+  const { owner, friend, path } = await groupOfTwo(browser);
+  const friendDiscord = await linkDiscord(friend);
+
+  // The owner picks a channel; one the bot can't write in is refused.
+  await owner.page.goto(path);
+  const picker = owner.page.getByLabel("Discord 频道");
+  await expect(picker.locator("option")).toHaveText([
+    "不发到频道（成员各自收私信）",
+    "测试服务器 · #general",
+    "测试服务器 · #只读公告",
+  ]);
+  await picker.selectOption({ label: "测试服务器 · #只读公告" });
+  await owner.page.getByRole("button", { name: "保存频道" }).click();
+  await expect(owner.page.getByRole("main").getByRole("alert")).toContainText("没有发言权限");
+
+  await picker.selectOption({ label: "测试服务器 · #general" });
+  await owner.page.getByRole("button", { name: "保存频道" }).click();
+  await expect(owner.page.getByText("已连接 Discord 频道")).toBeVisible();
+  const before = (await channelMessages("100")).length;
+  expect((await channelMessages("100")).at(-1)?.content).toContain("已连接 Game Vote 群");
+
+  // A new round: one channel post mentioning the friend, and no DM.
+  await owner.page.goto(`${path}/votes`);
+  await owner.page.getByRole("button", { name: "发起投票" }).click();
+  await expect(owner.page).toHaveURL(/\/votes\/\w+$/, { timeout: 30_000 });
+  sendNotifications();
+
+  const posts = (await channelMessages("100")).slice(before);
+  expect(posts).toHaveLength(1);
+  expect(posts[0].content).toBe(`<@${friendDiscord}>`);
+  expect(posts[0].allowed_mentions?.users).toEqual([friendDiscord]);
+  expect(posts[0].embeds?.[0].title).toContain("发起了第 1 轮投票");
+  expect(await dmsTo(friendDiscord)).toHaveLength(0);
+
+  // The owner sees it went out; members see where notifications go.
+  await owner.page.goto(path);
+  await expect(owner.page.getByText(/最近一条：.*发起了第 1 轮投票/)).toContainText("已发送");
+  await friend.page.goto(path);
+  await expect(
+    friend.page.getByText("本群的投票通知会发到 Discord 频道 测试服务器 · #general"),
+  ).toBeVisible();
+});

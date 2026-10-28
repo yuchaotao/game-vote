@@ -3,7 +3,14 @@
 import type { NotificationChannel, NotificationStatus } from "@prisma/client";
 import { useActionState } from "react";
 import { saveNotificationPreferences } from "@/lib/notify/actions";
-import { CHANNEL_LABEL, CHANNELS, EVENT_ORDER, EVENTS, prefKey } from "@/lib/notify/rules";
+import {
+  CHANNEL_LABEL,
+  CHANNELS,
+  EVENT_ORDER,
+  EVENTS,
+  prefKey,
+  type UserChannel,
+} from "@/lib/notify/rules";
 import { LocalDate } from "./games";
 import { Alert, Button } from "./ui";
 
@@ -36,13 +43,13 @@ export function NotificationSettings({
   }[];
 }) {
   const [state, action, pending] = useActionState(saveNotificationPreferences, undefined);
-  const notes: Record<NotificationChannel, string | null> = {
+  const notes: Record<UserChannel, string | null> = {
     EMAIL: email ? null : "验证邮箱后才会发送邮件。",
     DISCORD: !discordBot
       ? "站点尚未配置 Discord 机器人，暂时不会发送。"
       : !discordLinked
         ? "绑定 Discord 后才会发送私信。"
-        : "需要和 Game Vote 机器人在同一个 Discord 服务器里，才能收到私信。",
+        : "需要和 Game Vote 机器人在同一个 Discord 服务器里，才能收到私信。群绑定了 Discord 频道时，新投票和投票提示改为在频道里 @ 你。",
   };
 
   return (

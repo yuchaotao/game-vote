@@ -3,17 +3,21 @@ import type { NotificationChannel, NotificationEvent } from "@prisma/client";
 // Pure notification rules: which events exist, defaults, retries and message rendering.
 // Type-only Prisma imports: the settings form uses this module in the browser.
 
-export const CHANNELS: readonly NotificationChannel[] = ["EMAIL", "DISCORD"];
+/** Channels a user chooses per event (a group's Discord channel is set on the group). */
+export type UserChannel = Exclude<NotificationChannel, "DISCORD_CHANNEL">;
+
+export const CHANNELS: readonly UserChannel[] = ["EMAIL", "DISCORD"];
 
 export const CHANNEL_LABEL: Record<NotificationChannel, string> = {
   EMAIL: "邮件",
   DISCORD: "Discord 私信",
+  DISCORD_CHANNEL: "Discord 频道",
 };
 
 type EventInfo = {
   label: string;
   hint: string;
-  defaults: Record<NotificationChannel, boolean>;
+  defaults: Record<UserChannel, boolean>;
 };
 
 // Requests wait on you, so they also go by email; vote news is chattier and
@@ -43,8 +47,7 @@ export const EVENTS: Record<NotificationEvent, EventInfo> = {
 
 export const EVENT_ORDER = Object.keys(EVENTS) as NotificationEvent[];
 
-export const prefKey = (event: NotificationEvent, channel: NotificationChannel) =>
-  `${event}:${channel}`;
+export const prefKey = (event: NotificationEvent, channel: UserChannel) => `${event}:${channel}`;
 
 /** A user's effective choices: stored rows over the defaults. */
 export function effectivePreferences(
@@ -55,7 +58,8 @@ export function effectivePreferences(
     for (const channel of CHANNELS)
       prefs[prefKey(event, channel)] = EVENTS[event].defaults[channel];
   }
-  for (const s of stored) prefs[prefKey(s.event, s.channel)] = s.enabled;
+  // Stored rows only ever hold user channels.
+  for (const s of stored) prefs[prefKey(s.event, s.channel as UserChannel)] = s.enabled;
   return prefs;
 }
 
@@ -104,5 +108,14 @@ export function discordPayload(m: Message) {
         footer: { text: "Game Vote · 在网站设置中管理通知" },
       },
     ],
+  };
+}
+
+/** A group channel post: the embed plus @mentions, and only those users may be pinged. */
+export function channelPayload(m: Message, mentionIds: string[]) {
+  return {
+    ...(mentionIds.length > 0 && { content: mentionIds.map((id) => `<@${id}>`).join(" ") }),
+    ...discordPayload(m),
+    allowed_mentions: { users: mentionIds },
   };
 }

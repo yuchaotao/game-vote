@@ -17,6 +17,7 @@ import {
   inviteToGroup,
   leaveGroup,
   removeMember,
+  setDiscordChannel,
   transferOwnership,
   updateGroupInfo,
 } from "./service";
@@ -148,4 +149,21 @@ export async function dissolveGroupAction(groupId: string): Promise<FormState> {
   if (result?.error) return result;
   refresh(groupId);
   redirect("/groups?dissolved=1");
+}
+
+export async function setDiscordChannelAction(
+  groupId: string,
+  _: FormState,
+  form: FormData,
+): Promise<FormState> {
+  const user = await requireUser();
+  const channelId = String(form.get("channelId") ?? "") || null;
+  const result = await attempt(() => setDiscordChannel(groupId, user.id, channelId));
+  if (result?.error) return result;
+  refresh(groupId);
+  return {
+    ok: channelId
+      ? "已连接 Discord 频道，机器人在频道里发了一条确认消息"
+      : "已取消 Discord 频道通知",
+  };
 }

@@ -52,21 +52,25 @@ model User {
 }
 
 model Group {
-  id          String    @id @default(cuid())
-  name        String
-  description String    @default("")
-  ownerId     String
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id                  String    @id @default(cuid())
+  name                String
+  description         String    @default("")
+  ownerId             String
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
   /// Dissolved groups are archived (history kept), hidden from members.
-  dissolvedAt DateTime?
+  dissolvedAt         DateTime?
+  /// Discord channel for vote notifications (#38), chosen by the owner; label for display.
+  discordChannelId    String?
+  discordChannelLabel String?
 
-  owner        User               @relation("OwnedGroups", fields: [ownerId], references: [id])
-  members      GroupMember[]
-  joinRequests GroupJoinRequest[]
-  messages     ChatMessage[]
-  games        GroupGame[]
-  voteRounds   VoteRound[]
+  owner         User               @relation("OwnedGroups", fields: [ownerId], references: [id])
+  members       GroupMember[]
+  joinRequests  GroupJoinRequest[]
+  messages      ChatMessage[]
+  games         GroupGame[]
+  voteRounds    VoteRound[]
+  notifications Notification[]
 
   @@index([ownerId])
 }
@@ -512,6 +516,8 @@ enum NotificationEvent {
 enum NotificationChannel {
   EMAIL
   DISCORD
+  /// One post in the group's Discord channel (group events), @mentioning members.
+  DISCORD_CHANNEL
 }
 
 enum NotificationStatus {
@@ -538,7 +544,9 @@ model NotificationPreference {
 /// due PENDING rows and retries failures with backoff.
 model Notification {
   id            String              @id @default(cuid())
-  userId        String
+  /// The recipient; null for a channel post (then groupId is set).
+  userId        String?
+  groupId       String?
   event         NotificationEvent
   channel       NotificationChannel
   title         String
@@ -552,9 +560,13 @@ model Notification {
   lastError     String?
   createdAt     DateTime            @default(now())
   sentAt        DateTime?
+  /// Channel posts: Discord user ids to @mention.
+  mentions      String[]            @default([])
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user  User?  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group Group? @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
   @@index([status, nextAttemptAt])
   @@index([userId, createdAt])
+  @@index([groupId, createdAt])
 }

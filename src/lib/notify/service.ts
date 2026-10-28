@@ -3,14 +3,16 @@ import {
   NotificationStatus,
   type Notification,
   type NotificationEvent,
+  type Prisma,
 } from "@prisma/client";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { sendMail } from "@/lib/mail";
 import { QUEUE, queue } from "@/lib/queues";
 import { absoluteUrl } from "@/lib/urls";
-import { sendDiscordDm } from "./discord-bot";
+import { postToChannel, sendDiscordDm } from "./discord-bot";
 import {
+  channelPayload,
   CHANNELS,
   discordPayload,
   effectivePreferences,
@@ -21,6 +23,7 @@ import {
   renderEmail,
   retryDelay,
   STALE_SENDING_MS,
+  type UserChannel,
 } from "./rules";
 
 // Notifications (#11): events queue one row per recipient and channel; the
@@ -37,11 +40,46 @@ export type NotificationContent = {
 function reachable(
   user: { emailVerifiedAt: Date | null; accounts: { provider: string }[] },
   e = env(),
-): Record<NotificationChannel, boolean> {
+): Record<UserChannel, boolean> {
   return {
     EMAIL: Boolean(user.emailVerifiedAt),
     DISCORD: Boolean(e.DISCORD_BOT_TOKEN) && user.accounts.some((a) => a.provider === "discord"),
   };
+}
+
+function loadRecipients(event: NotificationEvent, userIds: string[]) {
+  return db.user.findMany({
+    where: { id: { in: [...new Set(userIds)] } },
+    select: {
+      id: true,
+      emailVerifiedAt: true,
+      accounts: {
+        where: { provider: "discord" },
+        select: { provider: true, providerAccountId: true },
+      },
+      notificationPreferences: { where: { event } },
+    },
+  });
+}
+
+/** The channels each user has on for `event` and can be reached by. */
+function wanted(event: NotificationEvent, users: Awaited<ReturnType<typeof loadRecipients>>) {
+  return users.map((user) => {
+    const prefs = effectivePreferences(user.notificationPreferences);
+    const can = reachable(user);
+    return { user, channels: CHANNELS.filter((c) => can[c] && prefs[prefKey(event, c)]) };
+  });
+}
+
+async function enqueue(rows: Prisma.NotificationCreateManyInput[]) {
+  if (rows.length === 0) return 0;
+  await db.notification.createMany({ data: rows });
+  // Send now rather than at the next scheduled sweep.
+  await queue(QUEUE.notify).add("send-notifications", null, {
+    removeOnComplete: true,
+    removeOnFail: 100,
+  });
+  return rows.length;
 }
 
 /**
@@ -54,47 +92,81 @@ export async function notify(
   content: NotificationContent,
 ): Promise<number> {
   try {
-    const users = await db.user.findMany({
-      where: { id: { in: [...new Set(userIds)] } },
-      select: {
-        id: true,
-        emailVerifiedAt: true,
-        accounts: { where: { provider: "discord" }, select: { provider: true } },
-        notificationPreferences: { where: { event } },
-      },
-    });
     const url = absoluteUrl(content.path);
-    const rows = users.flatMap((u) => {
-      const prefs = effectivePreferences(u.notificationPreferences);
-      const can = reachable(u);
-      return CHANNELS.filter((c) => can[c] && prefs[prefKey(event, c)]).map((channel) => ({
-        userId: u.id,
+    const rows = wanted(event, await loadRecipients(event, userIds)).flatMap(({ user, channels }) =>
+      channels.map((channel) => ({
+        userId: user.id,
         event,
         channel,
         title: content.title,
         body: content.body,
         url,
-      }));
-    });
-    if (rows.length === 0) return 0;
-    await db.notification.createMany({ data: rows });
-    // Send now rather than at the next scheduled sweep.
-    await queue(QUEUE.notify).add("send-notifications", null, {
-      removeOnComplete: true,
-      removeOnFail: 100,
-    });
-    return rows.length;
+      })),
+    );
+    return await enqueue(rows);
   } catch (err) {
     console.error(`[notify] ${event} failed to queue:`, err);
     return 0;
   }
 }
 
+/**
+ * A group event for every member but `exceptUserId`. When the group has a
+ * Discord channel (#38), Discord goes there as one post @mentioning the members
+ * who want Discord for this event, instead of DMs; email stays per member.
+ */
+export async function notifyGroup(
+  event: NotificationEvent,
+  groupId: string,
+  exceptUserId: string | null,
+  content: (groupName: string) => NotificationContent,
+): Promise<number> {
+  try {
+    const group = await db.group.findUniqueOrThrow({
+      where: { id: groupId },
+      select: { name: true, discordChannelId: true, members: { select: { userId: true } } },
+    });
+    const ids = group.members.map((m) => m.userId).filter((id) => id !== exceptUserId);
+    const c = content(group.name);
+    if (!group.discordChannelId || !env().DISCORD_BOT_TOKEN) return await notify(event, ids, c);
+
+    const base = { event, title: c.title, body: c.body, url: absoluteUrl(c.path) };
+    const recipients = wanted(event, await loadRecipients(event, ids));
+    const mentions = recipients
+      .filter((r) => r.channels.includes("DISCORD"))
+      .map((r) => r.user.accounts[0].providerAccountId);
+    return await enqueue([
+      ...recipients
+        .filter((r) => r.channels.includes("EMAIL"))
+        .map((r) => ({ ...base, userId: r.user.id, channel: NotificationChannel.EMAIL })),
+      { ...base, groupId, channel: NotificationChannel.DISCORD_CHANNEL, mentions },
+    ]);
+  } catch (err) {
+    console.error(`[notify] ${event} for group ${groupId} failed to queue:`, err);
+    return 0;
+  }
+}
+
 async function deliver(n: Notification) {
   const e = env();
+  if (n.channel === NotificationChannel.DISCORD_CHANNEL) {
+    const group = n.groupId
+      ? await db.group.findUnique({ where: { id: n.groupId }, select: { discordChannelId: true } })
+      : null;
+    if (!group?.discordChannelId) throw new PermanentDeliveryError("群已取消 Discord 频道通知");
+    if (!e.DISCORD_BOT_TOKEN) throw new PermanentDeliveryError("站点未配置 Discord 机器人");
+    await postToChannel(
+      { apiUrl: e.DISCORD_API_URL, token: e.DISCORD_BOT_TOKEN },
+      group.discordChannelId,
+      channelPayload(n, n.mentions),
+    );
+    return;
+  }
+  const userId = n.userId;
+  if (!userId) throw new PermanentDeliveryError("没有收件人");
   if (n.channel === NotificationChannel.EMAIL) {
     const user = await db.user.findUniqueOrThrow({
-      where: { id: n.userId },
+      where: { id: userId },
       select: { email: true, emailVerifiedAt: true },
     });
     if (!user.email || !user.emailVerifiedAt) throw new PermanentDeliveryError("邮箱未验证");
@@ -102,7 +174,7 @@ async function deliver(n: Notification) {
     return;
   }
   const account = await db.account.findUnique({
-    where: { userId_provider: { userId: n.userId, provider: "discord" } },
+    where: { userId_provider: { userId, provider: "discord" } },
     select: { providerAccountId: true },
   });
   if (!account) throw new PermanentDeliveryError("已解绑 Discord");
