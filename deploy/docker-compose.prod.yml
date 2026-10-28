@@ -4,6 +4,7 @@
 # - Separate compose project => separate volumes/database from the dev stack.
 # - Postgres and Redis are not published on the host (dev already uses 5432/6379).
 # - The web app listens on WEB_PORT (default 8080) for the reverse proxy on CT 101.
+# - web/worker run GAME_VOTE_IMAGE: the CI-built ghcr.io image, or game-vote:prod with --build.
 services:
   postgres:
     ports: !reset []
@@ -12,7 +13,7 @@ services:
     ports: !reset []
 
   web:
-    image: game-vote:prod
+    image: ${GAME_VOTE_IMAGE:-game-vote:prod}
     ports: !override
       - "${WEB_PORT:-8080}:3000"
     healthcheck:
@@ -29,7 +30,7 @@ services:
       retries: 3
 
   worker:
-    image: game-vote:prod
+    image: ${GAME_VOTE_IMAGE:-game-vote:prod}
     # Start only after web is healthy, i.e. after `prisma migrate deploy` has run;
     # otherwise the worker's first scheduled jobs can hit tables that don't exist yet.
     depends_on:
