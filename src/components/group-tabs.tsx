@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 
 const TABS = [
   { label: "成员", path: "" },
@@ -13,6 +14,15 @@ const TABS = [
 export function GroupTabs({ groupId, unread }: { groupId: string; unread: number }) {
   const pathname = usePathname();
   const base = `/groups/${groupId}`;
+  // The group layout (and the count it passed in) stays mounted while switching
+  // tabs, so after reading the chat the old count would come back on the next tab.
+  // Opening the chat reads everything: hide that count until a different one arrives.
+  const onChat = pathname.startsWith(`${base}/chat`);
+  const [readCount, setReadCount] = useState<number | null>(null);
+  useEffect(() => {
+    if (onChat) setReadCount(unread);
+  }, [onChat, unread]);
+  const shown = readCount === unread ? 0 : unread;
   return (
     <nav aria-label="群功能" className="flex gap-1 border-b border-zinc-200 dark:border-zinc-800">
       {TABS.map((t) => {
@@ -31,12 +41,12 @@ export function GroupTabs({ groupId, unread }: { groupId: string; unread: number
             }`}
           >
             {t.label}
-            {t.path === "/chat" && unread > 0 && !active && (
+            {t.path === "/chat" && shown > 0 && !active && (
               <span
-                aria-label={`${unread} 条未读消息`}
+                aria-label={`${shown} 条未读消息`}
                 className="rounded-full bg-red-500 px-1.5 text-xs leading-5 text-white"
               >
-                {unread > 99 ? "99+" : unread}
+                {shown > 99 ? "99+" : shown}
               </span>
             )}
           </Link>
