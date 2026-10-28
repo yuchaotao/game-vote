@@ -1,4 +1,4 @@
-import { refreshStaleSteamGames } from "@/lib/games/service";
+import { refreshStaleIgdbGames, refreshStaleSteamGames } from "@/lib/games/service";
 import { pollSteam, tickManualSessions } from "@/lib/play/service";
 import { QUEUE, WORKER_HEARTBEAT_KEY } from "@/lib/queues";
 import { redis } from "@/lib/redis";
@@ -19,10 +19,15 @@ export const JOBS = {
     run: () => redis().set(WORKER_HEARTBEAT_KEY, new Date().toISOString(), "EX", 180),
   },
   // Steam metadata (prices, reviews) goes stale; refresh a batch every hour.
+  // IGDB games are refreshed weekly by the same job.
   "refresh-steam": {
     queue: QUEUE.games,
     every: 60 * 60_000,
-    run: refreshStaleSteamGames,
+    run: async () => {
+      const steam = await refreshStaleSteamGames();
+      const igdb = await refreshStaleIgdbGames();
+      return { checked: steam.checked + igdb.checked, refreshed: steam.refreshed + igdb.refreshed };
+    },
   },
   // Who is playing what: Steam status + manual check-ins.
   "poll-presence": {

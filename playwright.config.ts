@@ -17,6 +17,11 @@ const basePath = process.env.BASE_PATH ?? "";
 const steamMockPort = 4100;
 process.env.STEAM_STORE_URL ??= `http://localhost:${steamMockPort}`;
 process.env.STEAM_API_URL ??= `http://localhost:${steamMockPort}`;
+// IGDB too, with dummy credentials so real ones from .env are never sent anywhere.
+process.env.IGDB_API_URL = `http://localhost:${steamMockPort}/igdb/v4`;
+process.env.IGDB_TOKEN_URL = `http://localhost:${steamMockPort}/igdb/token`;
+process.env.IGDB_CLIENT_ID = "e2e-client";
+process.env.IGDB_CLIENT_SECRET = "e2e-secret";
 
 export default defineConfig({
   testDir: "e2e",

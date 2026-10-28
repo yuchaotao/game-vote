@@ -14,6 +14,15 @@ import {
   type SteamStoreConfig,
   steamStoreUrl,
 } from "./steam-store";
+import {
+  fetchIgdbGame,
+  requestIgdbToken,
+  searchIgdb,
+  type IgdbConfig,
+  type IgdbGameData,
+  type IgdbGameResult,
+  type IgdbSearchResult,
+} from "./igdb";
 
 export class GameError extends Error {}
 
@@ -276,4 +285,165 @@ export async function steamGameFromPresence(appId: string, name: string | null) 
     create: { source: GameSource.STEAM, externalId: appId, ...data },
     update: {},
   });
+}
+
+// --- IGDB (non-Steam games) -------------------------------------------------
+
+/** IGDB metadata changes rarely; refresh weekly. */
+export const IGDB_METADATA_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+// Per client id, so a test or rotated app never reuses another app's token.
+const igdbTokenKey = (clientId: string) => `igdb:token:${clientId}`;
+
+const IGDB_ERRORS: Record<Exclude<IgdbGameResult, { ok: true }>["reason"], string> = {
+  "not-found": "在 IGDB 上找不到这个游戏",
+  unavailable: "IGDB 暂时无法访问，请稍后再试",
+};
+
+/** Null when IGDB credentials aren't configured (the IGDB search is then hidden). */
+export function igdbConfig(): IgdbConfig | null {
+  const e = env();
+  if (!e.IGDB_CLIENT_ID || !e.IGDB_CLIENT_SECRET) return null;
+  const { IGDB_CLIENT_ID: clientId, IGDB_CLIENT_SECRET: secret } = e;
+  return {
+    clientId,
+    baseUrl: e.IGDB_API_URL.replace(/\/+$/, ""),
+    // App access tokens last ~60 days; cache one in Redis and renew early.
+    token: async () => {
+      const cached = await redis().get(igdbTokenKey(clientId));
+      if (cached) return cached;
+      const fresh = await requestIgdbToken(clientId, secret, e.IGDB_TOKEN_URL);
+      if (!fresh) return null;
+      const ttl = Math.max(60, fresh.expiresIn - 3600);
+      await redis().set(igdbTokenKey(clientId), fresh.token, "EX", ttl);
+      return fresh.token;
+    },
+  };
+}
+
+export const igdbEnabled = () => igdbConfig() !== null;
+
+function requireIgdb(): IgdbConfig {
+  const cfg = igdbConfig();
+  if (!cfg) throw new GameError("站点尚未配置 IGDB");
+  return cfg;
+}
+
+export type IgdbLookup = {
+  results: IgdbSearchResult[];
+  /** IGDB ids already in this group's library (directly, or as their Steam version). */
+  inLibrary: string[];
+};
+
+export async function lookupIgdb(groupId: string, term: string): Promise<IgdbLookup> {
+  const cfg = requireIgdb();
+  const key = `igdb:search:${term.toLowerCase()}`;
+  const cached = await redis().get(key);
+  let results: IgdbSearchResult[];
+  if (cached) {
+    results = JSON.parse(cached) as IgdbSearchResult[];
+  } else {
+    const found = await searchIgdb(term, cfg);
+    if (!found) throw new GameError(IGDB_ERRORS.unavailable);
+    results = found;
+    await redis().set(key, JSON.stringify(results), "EX", SEARCH_CACHE_SECONDS);
+  }
+
+  const existing = await db.groupGame.findMany({
+    where: {
+      groupId,
+      game: {
+        OR: [
+          { source: GameSource.IGDB, externalId: { in: results.map((r) => r.igdbId) } },
+          {
+            source: GameSource.STEAM,
+            externalId: { in: results.flatMap((r) => (r.steamAppId ? [r.steamAppId] : [])) },
+          },
+        ],
+      },
+    },
+    select: { game: { select: { source: true, externalId: true } } },
+  });
+  const have = new Set(existing.map((e) => `${e.game.source}:${e.game.externalId}`));
+  return {
+    results,
+    inLibrary: results
+      .filter(
+        (r) => have.has(`IGDB:${r.igdbId}`) || (r.steamAppId && have.has(`STEAM:${r.steamAppId}`)),
+      )
+      .map((r) => r.igdbId),
+  };
+}
+
+function igdbColumns({ externalId, ...columns }: IgdbGameData) {
+  void externalId; // the lookup key, not a column to update
+  return { ...columns, metadataUpdatedAt: new Date() };
+}
+
+/**
+ * Adds an IGDB game. Games IGDB knows to be on Steam are added as the Steam
+ * game instead, so a library never holds the same game twice.
+ */
+export async function addIgdbGame(groupId: string, userId: string, igdbId: string) {
+  await ownerOf(groupId);
+  const where = { source_externalId: { source: GameSource.IGDB, externalId: igdbId } };
+  const existing = await db.game.findUnique({ where });
+  const fresh =
+    existing?.metadataUpdatedAt &&
+    Date.now() - existing.metadataUpdatedAt.getTime() < IGDB_METADATA_TTL_MS;
+
+  let game = existing;
+  if (!existing || !fresh) {
+    const result = await fetchIgdbGame(igdbId, requireIgdb());
+    if (!result.ok) {
+      if (!existing || result.reason !== "unavailable")
+        throw new GameError(IGDB_ERRORS[result.reason]);
+    } else {
+      if (result.steamAppId) {
+        return { game: await addSteamGame(groupId, userId, result.steamAppId), viaSteam: true };
+      }
+      game = await db.game.upsert({
+        where,
+        create: { source: GameSource.IGDB, externalId: igdbId, ...igdbColumns(result.game) },
+        update: igdbColumns(result.game),
+      });
+    }
+  }
+  await addToLibrary(groupId, userId, game!);
+  return { game: game!, viaSteam: false };
+}
+
+/** Refetches one IGDB game's metadata. Returns false if IGDB didn't answer. */
+export async function refreshIgdbGame(gameId: string): Promise<boolean> {
+  const cfg = igdbConfig();
+  const game = await db.game.findUnique({ where: { id: gameId } });
+  if (!cfg || !game || game.source !== GameSource.IGDB || !game.externalId) return false;
+  const result = await fetchIgdbGame(game.externalId, cfg);
+  if (!result.ok) return false;
+  await db.game.update({ where: { id: gameId }, data: igdbColumns(result.game) });
+  return true;
+}
+
+/** Weekly refresh of IGDB games that are in some library. */
+export async function refreshStaleIgdbGames(limit = 30) {
+  if (!igdbConfig()) return { checked: 0, refreshed: 0 };
+  const stale = await db.game.findMany({
+    where: {
+      source: GameSource.IGDB,
+      groupGames: { some: {} },
+      OR: [
+        { metadataUpdatedAt: null },
+        { metadataUpdatedAt: { lt: new Date(Date.now() - IGDB_METADATA_TTL_MS) } },
+      ],
+    },
+    orderBy: { metadataUpdatedAt: { sort: "asc", nulls: "first" } },
+    take: limit,
+    select: { id: true },
+  });
+  let refreshed = 0;
+  // IGDB allows 4 requests / second.
+  for (const [i, g] of stale.entries()) {
+    if (i > 0) await new Promise((r) => setTimeout(r, 300));
+    if (await refreshIgdbGame(g.id)) refreshed++;
+  }
+  return { checked: stale.length, refreshed };
 }

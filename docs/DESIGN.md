@@ -54,6 +54,8 @@
   - 粘贴 Steam 商店链接 → 解析 appid → 拉取元数据；
   - 站内 Steam 搜索（Steam store search API）；
   - 非 Steam：IGDB 搜索；或完全手动填写。
+    - IGDB 结果如果标明也在 Steam 上（external_games / Steam 商店链接），按 Steam 游戏添加，避免同一游戏两条记录；搜索只返回本体（排除 DLC、季票、各种版本）。
+    - IGDB 资料每周刷新；未配置 `IGDB_CLIENT_ID` / `IGDB_CLIENT_SECRET` 时不显示 IGDB 搜索。
 - 卡片展示：封面、简介、类型/标签、风评（Steam 好评率 + 评价文字，或 IGDB/Metacritic 评分）、价格、多人模式、平台、添加人。
 - **游玩记录**：每个游戏显示"什么时间段、哪些群成员一起玩了多久"（时间线）。
 - **热度排序**：最近 N 天群成员游玩时长加权 + 投票得票 + 新近添加加成；另可按评分、添加时间、名称排序。

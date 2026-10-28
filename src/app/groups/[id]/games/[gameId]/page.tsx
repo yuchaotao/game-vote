@@ -73,7 +73,7 @@ export default async function GameDetailPage({
               ["发行日期", g.releaseDate],
               ["Metacritic", g.reviewPercent !== null ? g.metacritic : null],
               [
-                g.source === "STEAM" ? "Steam 商店" : "链接",
+                g.source === "STEAM" ? "Steam 商店" : g.source === "IGDB" ? "官网 / IGDB" : "链接",
                 g.storeUrl && (
                   <a
                     href={g.storeUrl}

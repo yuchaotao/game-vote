@@ -1,4 +1,4 @@
-// Minimal stand-in for the Steam store endpoints the app uses, so e2e tests
+// Minimal stand-in for the Steam store / Web API and IGDB endpoints the app uses, so e2e tests
 // don't depend on (or hammer) the real store. Started by playwright.config.ts.
 import { createServer } from "node:http";
 
@@ -55,6 +55,34 @@ const apps = {
   2000: { type: "music", name: "Some Soundtrack" },
 };
 
+// IGDB games: one only on EA / consoles, one that IGDB knows is on Steam.
+const igdbGames = [
+  {
+    id: 1001,
+    name: "Battlefield 4",
+    summary: "All-out war on land, sea and air.",
+    first_release_date: 1383004800,
+    cover: { image_id: "bf4cover" },
+    artworks: [{ image_id: "bf4art" }],
+    screenshots: [{ image_id: "bf4shot" }],
+    genres: [{ name: "Shooter" }],
+    game_modes: [{ name: "Single player" }, { name: "Multiplayer" }],
+    platforms: [{ abbreviation: "PC", name: "PC (Microsoft Windows)" }, { abbreviation: "PS4" }],
+    involved_companies: [{ developer: true, company: { name: "DICE" } }],
+    websites: [{ type: 1, url: "https://www.ea.com/games/battlefield/battlefield-4" }],
+    total_rating: 78.04,
+    total_rating_count: 412,
+    url: "https://www.igdb.com/games/battlefield-4",
+  },
+  {
+    id: 1002,
+    name: "Battlefield Apex Crossover",
+    first_release_date: 1604448000,
+    platforms: [{ abbreviation: "PC" }],
+    external_games: [{ external_game_source: 1, uid: "1172470" }],
+  },
+];
+
 // Steam Web API player status, set by tests through POST /mock/players.
 const players = {};
 
@@ -77,6 +105,31 @@ createServer((req, res) => {
   const path = url.pathname;
 
   if (path === "/health") return json(res, { ok: true });
+
+  // IGDB / Twitch. Token: POST /igdb/token; queries: POST /igdb/v4/games.
+  if (path === "/igdb/token" && req.method === "POST") {
+    return json(res, {
+      access_token: "mock-igdb-token",
+      expires_in: 5000000,
+      token_type: "bearer",
+    });
+  }
+
+  if (path === "/igdb/v4/games" && req.method === "POST") {
+    if (req.headers.authorization !== "Bearer mock-igdb-token")
+      return json(res, { message: "unauthorized" }, 401);
+    let body = "";
+    req.on("data", (c) => (body += c));
+    req.on("end", () => {
+      const search = /search "([^"]*)"/.exec(body)?.[1]?.toLowerCase();
+      const id = /where id = (\d+)/.exec(body)?.[1];
+      const found = igdbGames.filter((g) =>
+        id ? String(g.id) === id : search ? g.name.toLowerCase().includes(search) : false,
+      );
+      json(res, found);
+    });
+    return;
+  }
 
   // Steam Web API presence. Tests set a player's status with
   // POST /mock/players {"<steamid>": {gameid, gameextrainfo, personastate, communityvisibilitystate}}.

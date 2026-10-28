@@ -91,7 +91,7 @@ test("manual games: add, duplicate check, edit, permissions, remove", async ({ b
   const { owner, friend, path } = await groupOfTwo(browser);
   const page = friend.page;
   await page.goto(`${path}/games`);
-  await page.getByRole("button", { name: "不在 Steam 上？手动添加" }).click();
+  await page.getByRole("button", { name: "都找不到？手动添加" }).click();
   await page.getByLabel("游戏名").fill("Battlefield 6");
   await page.getByLabel("平台 / 启动器").fill("EA App，PC");
   await page.getByLabel("类型").fill("射击");
