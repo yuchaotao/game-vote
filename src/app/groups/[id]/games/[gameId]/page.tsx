@@ -1,13 +1,20 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AddedBy, GameCover, GameDetailActions, PriceTag, ReviewSummary } from "@/components/games";
+import {
+  AddedBy,
+  GameCover,
+  GameDetailActions,
+  HotnessBreakdown,
+  PriceTag,
+  ReviewSummary,
+} from "@/components/games";
 import { PlayTotals, TogetherList } from "@/components/play";
 import { Card } from "@/components/ui";
 import { requireUser } from "@/lib/auth/session";
 import { canManageGroupGame } from "@/lib/games/rules";
 import { getLibraryEntry } from "@/lib/games/service";
 import { getGroupForMember } from "@/lib/groups/service";
-import { gamePlayTotals, groupTogether } from "@/lib/play/service";
+import { gamePlayTotals, groupTogether, libraryHotness } from "@/lib/play/service";
 
 export const metadata = { title: "游戏详情 · Game Vote" };
 
@@ -38,9 +45,10 @@ export default async function GameDetailPage({
     getLibraryEntry(id, gameId),
   ]);
   if (!group || !entry) notFound();
-  const [together, totals] = await Promise.all([
+  const [together, totals, hot] = await Promise.all([
     groupTogether(id, { gameId, days: 90 }),
     gamePlayTotals(id, gameId),
+    libraryHotness(id, [entry]),
   ]);
   const g = entry.game;
   const join = (xs: string[]) => (xs.length ? xs.join(" · ") : null);
@@ -102,6 +110,10 @@ export default async function GameDetailPage({
             canManage={canManageGroupGame(user.id, entry, group.ownerId)}
           />
         </div>
+      </Card>
+      <Card className="space-y-3">
+        <h3 className="font-semibold">热度</h3>
+        <HotnessBreakdown hot={hot[gameId]} />
       </Card>
       <Card className="space-y-3">
         <h3 className="font-semibold">一起玩的记录（近 90 天）</h3>

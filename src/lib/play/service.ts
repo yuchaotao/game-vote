@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { publicUser, type PublicUser } from "@/lib/friends/service";
 import { getLibraryEntry, steamGameFromPresence } from "@/lib/games/service";
+import { hotness, HOTNESS, type Hotness } from "@/lib/games/hotness";
 import { redis } from "@/lib/redis";
 import {
   clip,
@@ -292,4 +293,17 @@ export function lastSteamSession(userId: string) {
     orderBy: { lastSeenAt: "desc" },
     include: { game: { select: { name: true } } },
   });
+}
+
+/**
+ * Hot scores for a group's library from members' recent play. Votes join in
+ * once voting exists (#9).
+ */
+export async function libraryHotness(
+  groupId: string,
+  entries: { gameId: string; addedAt: Date }[],
+): Promise<Record<string, Hotness>> {
+  const since = new Date(Date.now() - HOTNESS.windowMs);
+  const { intervals } = await memberIntervals(groupId, since);
+  return hotness(entries, intervals, []);
 }

@@ -3,6 +3,7 @@ import { AddGamePanel, GameLibrary } from "@/components/games";
 import { requireUser } from "@/lib/auth/session";
 import { igdbEnabled, listLibrary } from "@/lib/games/service";
 import { isActiveMember } from "@/lib/groups/service";
+import { libraryHotness } from "@/lib/play/service";
 
 export const metadata = { title: "游戏库 · Game Vote" };
 
@@ -11,11 +12,12 @@ export default async function GroupGamesPage({ params }: { params: Promise<{ id:
   const user = await requireUser();
   if (!(await isActiveMember(id, user.id))) notFound();
   const entries = await listLibrary(id);
+  const hot = await libraryHotness(id, entries);
 
   return (
     <div className="space-y-6">
       <AddGamePanel groupId={id} igdb={igdbEnabled()} />
-      <GameLibrary groupId={id} entries={entries} />
+      <GameLibrary groupId={id} entries={entries} hot={hot} />
     </div>
   );
 }

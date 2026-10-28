@@ -69,13 +69,15 @@ export function formatPrice(amount: number, currency: string): string {
   }
 }
 
-export type LibrarySort = "recent" | "rating" | "name";
+export type LibrarySort = "hot" | "recent" | "rating" | "name";
 
 type Sortable = {
   name: string;
   addedAt: Date | string;
   reviewPercent: number | null;
   metacritic: number | null;
+  /** Hot score (see hotness.ts); 0 when unknown. */
+  hot?: number;
 };
 
 /** Rating used for sorting: Steam positive share, else Metacritic. */
@@ -87,10 +89,17 @@ export function sortLibrary<T extends Sortable>(games: T[], sort: LibrarySort): 
   const byName = (a: T, b: T) => a.name.localeCompare(b.name, "zh-CN");
   const sorted = [...games];
   if (sort === "name") return sorted.sort(byName);
-  if (sort === "rating") {
-    return sorted.sort((a, b) => (ratingOf(b) ?? -1) - (ratingOf(a) ?? -1) || byName(a, b));
+  const byRating = (a: T, b: T) => (ratingOf(b) ?? -1) - (ratingOf(a) ?? -1);
+  if (sort === "rating") return sorted.sort((a, b) => byRating(a, b) || byName(a, b));
+  if (sort === "hot") {
+    return sorted.sort((a, b) => (b.hot ?? 0) - (a.hot ?? 0) || byRating(a, b) || byName(a, b));
   }
   return sorted.sort((a, b) => new Date(b.addedAt).getTime() - new Date(a.addedAt).getTime());
+}
+
+/** Whether a game can be played together (any play mode besides single player). */
+export function isMultiplayer(features: string[]): boolean {
+  return features.some((f) => f !== "单人" && f !== "Single player");
 }
 
 /** Case- and width-insensitive name match for the library filter and duplicate check. */
