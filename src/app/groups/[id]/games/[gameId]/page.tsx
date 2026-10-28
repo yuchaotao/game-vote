@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AddedBy, GameCover, GameDetailActions, PriceTag, ReviewSummary } from "@/components/games";
+import { PlayTotals, TogetherList } from "@/components/play";
 import { Card } from "@/components/ui";
 import { requireUser } from "@/lib/auth/session";
 import { canManageGroupGame } from "@/lib/games/rules";
 import { getLibraryEntry } from "@/lib/games/service";
 import { getGroupForMember } from "@/lib/groups/service";
+import { gamePlayTotals, groupTogether } from "@/lib/play/service";
 
 export const metadata = { title: "游戏详情 · Game Vote" };
 
@@ -36,6 +38,10 @@ export default async function GameDetailPage({
     getLibraryEntry(id, gameId),
   ]);
   if (!group || !entry) notFound();
+  const [together, totals] = await Promise.all([
+    groupTogether(id, { gameId, days: 90 }),
+    gamePlayTotals(id, gameId),
+  ]);
   const g = entry.game;
   const join = (xs: string[]) => (xs.length ? xs.join(" · ") : null);
 
@@ -97,11 +103,18 @@ export default async function GameDetailPage({
           />
         </div>
       </Card>
-      <Card className="space-y-1">
-        <h3 className="font-semibold">游玩记录</h3>
-        <p className="text-sm text-zinc-500">
-          即将上线：自动记录群成员什么时候一起玩了这个游戏、玩了多久。
-        </p>
+      <Card className="space-y-3">
+        <h3 className="font-semibold">一起玩的记录（近 90 天）</h3>
+        <TogetherList
+          groupId={id}
+          items={together}
+          showGame={false}
+          empty="还没有检测到群成员一起玩这个游戏。"
+        />
+      </Card>
+      <Card className="space-y-3">
+        <h3 className="font-semibold">成员游玩时长（近 30 天）</h3>
+        <PlayTotals totals={totals} />
       </Card>
     </div>
   );

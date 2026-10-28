@@ -9,6 +9,8 @@ import {
   findUserByAccount,
   linkAccount,
   type ExternalProfile,
+  refreshSteamProfile,
+  steamFallbackName,
 } from "@/lib/auth/users";
 import { inviteCodeFromPath } from "@/lib/friends/rules";
 import { redeemInvite } from "@/lib/friends/service";
@@ -30,9 +32,17 @@ export async function GET(req: NextRequest) {
   const profile: ExternalProfile = {
     provider: "steam",
     providerAccountId: steamId,
-    displayName: player?.personaname ?? `steam${steamId.slice(-6)}`,
+    displayName: player?.personaname ?? steamFallbackName(steamId),
     avatarUrl: player?.avatarfull,
   };
+
+  // Already linked (login or re-link): pick up name / avatar changes on Steam.
+  if (player) {
+    await refreshSteamProfile(steamId, {
+      personaName: player.personaname,
+      avatarUrl: player.avatarfull ?? null,
+    });
+  }
 
   if (intent === "link") {
     const user = await getCurrentUser();

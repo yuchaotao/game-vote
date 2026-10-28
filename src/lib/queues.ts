@@ -5,6 +5,7 @@ import { redis } from "./redis";
 export const QUEUE = {
   system: "system",
   games: "games",
+  play: "play",
 } as const;
 
 export const WORKER_HEARTBEAT_KEY = "worker:heartbeat";
