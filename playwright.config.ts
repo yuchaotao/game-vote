@@ -22,6 +22,9 @@ process.env.IGDB_API_URL = `http://localhost:${steamMockPort}/igdb/v4`;
 process.env.IGDB_TOKEN_URL = `http://localhost:${steamMockPort}/igdb/token`;
 process.env.IGDB_CLIENT_ID = "e2e-client";
 process.env.IGDB_CLIENT_SECRET = "e2e-secret";
+// Discord bot DMs go to the mock as well.
+process.env.DISCORD_API_URL = `http://localhost:${steamMockPort}/discord/api`;
+process.env.DISCORD_BOT_TOKEN = "e2e-bot-token";
 
 export default defineConfig({
   testDir: "e2e",

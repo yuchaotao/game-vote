@@ -86,6 +86,9 @@ const igdbGames = [
 // Steam Web API player status, set by tests through POST /mock/players.
 const players = {};
 
+// Discord DMs sent by the bot, per recipient id; read through GET /mock/discord/messages.
+const discordDms = {};
+
 const reviews = {
   1086940: {
     review_score_desc: "好评如潮",
@@ -105,6 +108,30 @@ createServer((req, res) => {
   const path = url.pathname;
 
   if (path === "/health") return json(res, { ok: true });
+
+  // Discord REST API (bot DMs). Recipient ids starting with 999 have DMs closed.
+  if (path.startsWith("/discord/api/") && req.method === "POST") {
+    if (req.headers.authorization !== "Bot e2e-bot-token")
+      return json(res, { message: "401: Unauthorized", code: 0 }, 401);
+    let body = "";
+    req.on("data", (c) => (body += c));
+    req.on("end", () => {
+      const data = JSON.parse(body || "{}");
+      if (path === "/discord/api/users/@me/channels") {
+        if (data.recipient_id.startsWith("999"))
+          return json(res, { message: "Cannot send messages to this user", code: 50007 }, 403);
+        return json(res, { id: `dm-${data.recipient_id}` });
+      }
+      const dm = /^\/discord\/api\/channels\/dm-(\w+)\/messages$/.exec(path);
+      if (!dm) return json(res, { message: "Unknown", code: 0 }, 404);
+      (discordDms[dm[1]] ??= []).push(data);
+      json(res, { id: `msg-${Date.now()}` });
+    });
+    return;
+  }
+  if (path === "/mock/discord/messages") {
+    return json(res, discordDms[url.searchParams.get("recipient")] ?? []);
+  }
 
   // IGDB / Twitch. Token: POST /igdb/token; queries: POST /igdb/v4/games.
   if (path === "/igdb/token" && req.method === "POST") {

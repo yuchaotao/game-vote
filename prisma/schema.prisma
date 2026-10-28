@@ -46,6 +46,9 @@ model User {
   voteBallots        VoteBallot[]
   voteEvents         VoteEvent[]
   votePrompts        VotePrompt[]
+
+  notificationPreferences NotificationPreference[]
+  notifications           Notification[]
 }
 
 model Group {
@@ -493,4 +496,65 @@ model VotePrompt {
   resolvedBy User?     @relation(fields: [resolvedById], references: [id], onDelete: SetNull)
 
   @@index([roundId, status])
+}
+
+enum NotificationEvent {
+  /// A vote round started in one of your groups.
+  NEW_ROUND
+  /// "You're playing a front-runner together: end the vote?" (#10)
+  VOTE_PROMPT
+  /// A member asked to bring someone into a group you own.
+  JOIN_REQUEST
+  /// Someone sent you a friend request.
+  FRIEND_REQUEST
+}
+
+enum NotificationChannel {
+  EMAIL
+  DISCORD
+}
+
+enum NotificationStatus {
+  PENDING
+  SENDING
+  SENT
+  FAILED
+}
+
+/// A user's choice for one event on one channel. Missing rows use the defaults in
+/// src/lib/notify/rules.ts.
+model NotificationPreference {
+  userId  String
+  event   NotificationEvent
+  channel NotificationChannel
+  enabled Boolean
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, event, channel])
+}
+
+/// Every notification, kept as history. Also the send queue: the worker picks up
+/// due PENDING rows and retries failures with backoff.
+model Notification {
+  id            String              @id @default(cuid())
+  userId        String
+  event         NotificationEvent
+  channel       NotificationChannel
+  title         String
+  body          String
+  /// Absolute link to the page the notification is about.
+  url           String
+  status        NotificationStatus  @default(PENDING)
+  attempts      Int                 @default(0)
+  /// When PENDING: next try. When SENDING: when the current try started.
+  nextAttemptAt DateTime            @default(now())
+  lastError     String?
+  createdAt     DateTime            @default(now())
+  sentAt        DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextAttemptAt])
+  @@index([userId, createdAt])
 }

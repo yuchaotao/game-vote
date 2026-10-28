@@ -20,7 +20,7 @@ async function main() {
           // Log only runs that did something, not every quiet 2-minute poll.
           if (
             job.name !== "heartbeat" &&
-            /"(started|closed|expired|refreshed|raised)":[1-9]/.test(result)
+            /"(started|closed|expired|refreshed|raised|sent|failed)":[1-9]/.test(result)
           ) {
             console.log(`[worker] ${job.name} ${result}`);
           }
