@@ -5,7 +5,8 @@ import IORedis from "ioredis";
 export default async function globalSetup() {
   const redis = new IORedis(process.env.REDIS_URL ?? "redis://localhost:6379");
   try {
-    const keys = await redis.keys("ratelimit:*");
+    // Steam search results are cached; drop any fetched from the real store.
+    const keys = [...(await redis.keys("ratelimit:*")), ...(await redis.keys("steam:search:*"))];
     if (keys.length) await redis.del(...keys);
   } finally {
     redis.disconnect();

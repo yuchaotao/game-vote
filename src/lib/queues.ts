@@ -4,6 +4,7 @@ import { redis } from "./redis";
 // Queue names shared by the web app (producer) and the worker (consumer).
 export const QUEUE = {
   system: "system",
+  games: "games",
 } as const;
 
 export const WORKER_HEARTBEAT_KEY = "worker:heartbeat";

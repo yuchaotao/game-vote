@@ -13,6 +13,13 @@ export const envSchema = z.object({
   SESSION_SECRET: z.string().min(32, "SESSION_SECRET must be at least 32 characters"),
 
   STEAM_API_KEY: optional,
+  /** Steam store base URL; tests point this at e2e/steam-mock.mjs. */
+  STEAM_STORE_URL: z.string().url().default("https://store.steampowered.com"),
+  /** Country used for Steam prices. */
+  STEAM_STORE_COUNTRY: z
+    .string()
+    .regex(/^[a-z]{2}$/)
+    .default("us"),
   DISCORD_CLIENT_ID: optional,
   DISCORD_CLIENT_SECRET: optional,
   DISCORD_BOT_TOKEN: optional,

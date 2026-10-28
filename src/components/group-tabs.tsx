@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-// Sections fill in as features land: games (#6), voting (#9).
+// Sections fill in as features land: voting (#9).
 const TABS = [
   { label: "成员", path: "" },
   { label: "聊天", path: "/chat" },
-  { label: "游戏库", path: null },
+  { label: "游戏库", path: "/games" },
   { label: "投票", path: null },
 ] as const;
 
@@ -29,7 +29,8 @@ export function GroupTabs({ groupId, unread }: { groupId: string; unread: number
           );
         }
         const href = `${base}${t.path}`;
-        const active = pathname === href;
+        // Sub-pages (a game's details) keep their section highlighted.
+        const active = t.path === "" ? pathname === href : pathname.startsWith(href);
         return (
           <Link
             key={t.label}

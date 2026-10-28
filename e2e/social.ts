@@ -29,7 +29,10 @@ export async function createGroup(owner: User, name: string): Promise<string> {
   await owner.page.getByLabel("群名").fill(name);
   await owner.page.getByLabel("简介（可选）").fill("周末一起玩");
   await owner.page.getByRole("button", { name: "创建群" }).click();
-  await expect(owner.page.getByRole("heading", { level: 1, name })).toBeVisible();
+  // Longer wait: in dev the group page may be compiled on this first visit.
+  await expect(owner.page.getByRole("heading", { level: 1, name })).toBeVisible({
+    timeout: 30_000,
+  });
   return new URL(owner.page.url()).pathname;
 }
 

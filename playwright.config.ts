@@ -13,6 +13,10 @@ try {
 
 const basePath = process.env.BASE_PATH ?? "";
 
+// Steam store requests go to a local mock (e2e/steam-mock.mjs).
+const steamMockPort = 4100;
+process.env.STEAM_STORE_URL ??= `http://localhost:${steamMockPort}`;
+
 export default defineConfig({
   testDir: "e2e",
   ...(basePath ? { testMatch: "base-path.spec.ts" } : { testIgnore: "base-path.spec.ts" }),
@@ -29,10 +33,17 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
-  webServer: {
-    command: process.env.CI ? "npm run start" : "npx next dev -p 3000",
-    url: `http://localhost:3000${basePath}/api/health`,
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-  },
+  webServer: [
+    {
+      command: "node e2e/steam-mock.mjs",
+      url: `http://localhost:${steamMockPort}/health`,
+      reuseExistingServer: !process.env.CI,
+    },
+    {
+      command: process.env.CI ? "npm run start" : "npx next dev -p 3000",
+      url: `http://localhost:3000${basePath}/api/health`,
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+    },
+  ],
 });
