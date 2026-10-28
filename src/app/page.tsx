@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { Landing } from "@/components/landing";
 import { LoginPanel } from "@/components/login-panel";
@@ -6,7 +7,8 @@ import { Alert, buttonClass, Card } from "@/components/ui";
 import { AUTH_ERRORS, pick } from "@/lib/auth/messages";
 import { getCurrentUser } from "@/lib/auth/session";
 import { formatFriendCode } from "@/lib/auth/validation";
-import { latestActiveGroupId } from "@/lib/groups/service";
+import { LAST_PAGE_COOKIE } from "@/lib/home/rules";
+import { homeTarget } from "@/lib/home/service";
 
 export default async function Home({
   searchParams,
@@ -24,9 +26,10 @@ export default async function Home({
     );
   }
 
-  // Straight into the conversation that's going on.
-  const groupId = await latestActiveGroupId(user.id);
-  if (groupId) redirect(`/groups/${groupId}/chat`);
+  // Back to where they were (or their chosen home page).
+  const last = (await cookies()).get(LAST_PAGE_COOKIE)?.value;
+  const target = await homeTarget(user.id, user.homePath, last && decodeURIComponent(last));
+  if (target) redirect(target);
 
   // No group yet: how to get started.
   return (
@@ -65,7 +68,7 @@ export default async function Home({
             </span>
             <div className="space-y-2">
               <p>
-                建一个群，拉好友进来，或者等朋友把你拉进他们的群。之后打开网站就会直接进入最近活跃的群聊。
+                建一个群，拉好友进来，或者等朋友把你拉进他们的群。之后打开网站会回到你上次看的页面，也可以在设置里指定默认首页。
               </p>
               <Link href="/groups" className={buttonClass("primary")}>
                 去建群

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { RememberPage } from "@/components/home";
 import { SiteHeader } from "@/components/site-header";
 import "./globals.css";
 
@@ -16,6 +17,7 @@ export default function RootLayout({
     <html lang="zh-CN">
       <body className="min-h-screen bg-zinc-50 text-zinc-900 antialiased dark:bg-zinc-950 dark:text-zinc-100">
         <SiteHeader />
+        <RememberPage />
         {children}
       </body>
     </html>

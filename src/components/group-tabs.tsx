@@ -4,12 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
-const TABS = [
-  { label: "成员", path: "" },
-  { label: "聊天", path: "/chat" },
-  { label: "游戏库", path: "/games" },
-  { label: "投票", path: "/votes" },
-] as const;
+import { GROUP_TABS as TABS } from "@/lib/home/rules";
 
 export function GroupTabs({ groupId, unread }: { groupId: string; unread: number }) {
   const pathname = usePathname();

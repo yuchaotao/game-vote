@@ -2,11 +2,12 @@
 
 import { AuthTokenType } from "@prisma/client";
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { safeNext } from "@/lib/friends/rules";
+import { LAST_PAGE_COOKIE } from "@/lib/home/rules";
 import { redeemInvite } from "@/lib/friends/service";
 import { hashPassword, verifyPassword } from "./crypto";
 import { rateLimit } from "./rate-limit";
@@ -97,6 +98,7 @@ export async function login(_: FormState, form: FormData): Promise<FormState> {
 
 export async function logout(): Promise<void> {
   await destroySession();
+  (await cookies()).delete(LAST_PAGE_COOKIE);
   redirect("/login");
 }
 

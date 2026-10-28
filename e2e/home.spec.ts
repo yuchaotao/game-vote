@@ -1,8 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { logout, register, submitLogin, uid } from "./helpers";
-import { createGroup, groupOfTwo } from "./social";
-
-const composer = (page: Page) => page.getByRole("textbox", { name: "输入消息" });
+import { groupOfTwo } from "./social";
 
 test("signed out, the home page pitches the site and signs you in", async ({ page }) => {
   const username = uid();
@@ -20,20 +18,44 @@ test("signed out, the home page pitches the site and signs you in", async ({ pag
   await expect(page.getByRole("link", { name: "去建群" })).toBeVisible();
 });
 
-test("signed in, the home page opens the most recently active group's chat", async ({
+/** Opens a page and waits until it has been remembered as the last visited. */
+async function visit(page: Page, path: string) {
+  await page.goto(path);
+  await expect
+    .poll(async () => (await page.context().cookies()).find((c) => c.name === "gv_last")?.value)
+    .toBe(encodeURIComponent(path));
+}
+
+test("signed in, home returns to the last page visited, or the chosen default", async ({
   browser,
 }) => {
-  const { owner, path: first } = await groupOfTwo(browser);
-  // A newer group: its "created" message makes it the most recent.
-  const second = await createGroup(owner, `群${uid().slice(-5)}`);
-  await owner.page.goto("/");
-  await expect(owner.page).toHaveURL(`${second}/chat`);
+  const { owner, path } = await groupOfTwo(browser);
+  const page = owner.page;
 
-  // Talking in the first group makes that one the most recent.
-  await owner.page.goto(`${first}/chat`);
-  await composer(owner.page).fill("今晚开黑？");
-  await composer(owner.page).press("Enter");
-  await expect(composer(owner.page)).toHaveValue("");
-  await owner.page.goto("/");
-  await expect(owner.page).toHaveURL(`${first}/chat`);
+  // The last group page or friends page visited on this device.
+  await visit(page, `${path}/votes`);
+  await page.goto("/");
+  await expect(page).toHaveURL(`${path}/votes`);
+  await visit(page, "/friends");
+  await page.goto("/settings"); // not remembered
+  await page.goto("/");
+  await expect(page).toHaveURL("/friends");
+
+  // A fixed default wins over the last visited page.
+  await page.goto("/settings");
+  await page.getByLabel("默认首页").selectOption(`${path}/games`);
+  await page.getByRole("button", { name: "保存默认首页" }).click();
+  await expect(page.getByText("已设置默认首页")).toBeVisible();
+  await visit(page, `${path}/chat`);
+  await page.goto("/");
+  await expect(page).toHaveURL(`${path}/games`);
+
+  // Back to "always the last visited".
+  await page.goto("/settings");
+  await page.getByLabel("默认首页").selectOption({ label: "总是显示最近访问" });
+  await page.getByRole("button", { name: "保存默认首页" }).click();
+  await expect(page.getByText("首页将显示最近访问的页面")).toBeVisible();
+  await visit(page, `${path}/chat`);
+  await page.goto("/");
+  await expect(page).toHaveURL(`${path}/chat`);
 });

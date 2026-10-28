@@ -7,7 +7,9 @@ import type { Provider } from "@/lib/auth/users";
 import { formatFriendCode } from "@/lib/auth/validation";
 import { lastSteamSession, presenceFor } from "@/lib/play/service";
 import { LocalDate } from "@/components/games";
+import { HomePageForm } from "@/components/home";
 import { NotificationSettings } from "@/components/notifications";
+import { listMyGroups } from "@/lib/groups/service";
 import { notificationSettings } from "@/lib/notify/service";
 
 export const metadata = { title: "设置 · Game Vote" };
@@ -75,10 +77,11 @@ export default async function SettingsPage({
   const params = await searchParams;
   const error = pick(AUTH_ERRORS, params.error);
   const linked = pick(LINKED_MESSAGES, params.linked);
-  const [presence, lastSteam, notifications] = await Promise.all([
+  const [presence, lastSteam, notifications, groups] = await Promise.all([
     presenceFor([user.id]).then((p) => p[user.id]),
     lastSteamSession(user.id),
     notificationSettings(user.id),
+    listMyGroups(user.id),
   ]);
 
   return (
@@ -144,6 +147,14 @@ export default async function SettingsPage({
       <Card className="space-y-4">
         <h2 className="text-lg font-semibold">邮箱</h2>
         <EmailForm email={user.email} verified={Boolean(user.emailVerifiedAt)} />
+      </Card>
+
+      <Card className="space-y-4">
+        <h2 className="text-lg font-semibold">首页</h2>
+        <HomePageForm
+          current={user.homePath}
+          groups={groups.map((g) => ({ id: g.id, name: g.name }))}
+        />
       </Card>
 
       <Card id="notifications" className="scroll-mt-20 space-y-4">
