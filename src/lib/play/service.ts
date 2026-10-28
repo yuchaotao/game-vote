@@ -310,3 +310,8 @@ export async function libraryHotness(
   ]);
   return hotness(entries, intervals, votes);
 }
+
+/** Group members' play since `since` (open sessions end at their last confirmation). */
+export async function groupPlayIntervals(groupId: string, since: Date): Promise<Interval[]> {
+  return (await memberIntervals(groupId, since)).intervals;
+}

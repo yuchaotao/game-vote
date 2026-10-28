@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { LocalDate } from "@/components/games";
 import { Card } from "@/components/ui";
-import { LiveVotes, StartRoundForm } from "@/components/votes";
+import { StartRoundForm } from "@/components/votes";
 import { requireUser } from "@/lib/auth/session";
 import { isActiveMember } from "@/lib/groups/service";
 import { END_REASON_TEXT } from "@/lib/votes/rules";
@@ -20,7 +20,6 @@ export default async function GroupVotesPage({ params }: { params: Promise<{ id:
 
   return (
     <div className="space-y-6">
-      <LiveVotes groupId={id} />
       {open ? (
         <Card className="space-y-2">
           <h2 className="text-lg font-semibold">进行中的投票</h2>

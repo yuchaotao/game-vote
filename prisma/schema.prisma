@@ -45,6 +45,7 @@ model User {
   voteCandidates     VoteCandidate[]
   voteBallots        VoteBallot[]
   voteEvents         VoteEvent[]
+  votePrompts        VotePrompt[]
 }
 
 model Group {
@@ -292,6 +293,7 @@ model Game {
   candidacies  VoteCandidate[]
   voteBallots  VoteBallot[]
   voteEvents   VoteEvent[]
+  votePrompts  VotePrompt[]
 
   @@unique([source, externalId])
   @@index([source, metadataUpdatedAt])
@@ -391,6 +393,7 @@ model VoteRound {
   candidates VoteCandidate[]
   ballots    VoteBallot[]
   events     VoteEvent[]
+  prompts    VotePrompt[]
 
   @@unique([groupId, number])
   @@index([groupId, status])
@@ -446,4 +449,48 @@ model VoteEvent {
   game  Game      @relation(fields: [gameId], references: [id], onDelete: Cascade)
 
   @@index([roundId, at])
+}
+
+enum VotePromptStatus {
+  PENDING
+  /**
+   * A member chose to keep the vote going.
+   */
+  CONTINUED
+  /**
+   * A member ended the vote and started the next round.
+   */
+  ENDED_NEXT
+  /**
+   * A member just ended the vote.
+   */
+  ENDED
+  /**
+   * The round ended some other way first.
+   */
+  EXPIRED
+}
+
+/// "More than half of you have been playing X together for 20+ minutes and it
+/// ranks top 2: end the vote?" Kept as history, one row per prompt.
+model VotePrompt {
+  id           String           @id @default(cuid())
+  roundId      String
+  gameId       String
+  /// Players and group size when it was raised.
+  players      Int
+  memberCount  Int
+  rank         Int
+  /// Start of the play session that triggered it (a later session may prompt again).
+  playingSince DateTime
+  status       VotePromptStatus @default(PENDING)
+  createdAt    DateTime         @default(now())
+  resolvedAt   DateTime?
+  resolvedById String?
+
+  round      VoteRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  game       Game      @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  resolvedBy User?     @relation(fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  @@index([roundId, status])
 }

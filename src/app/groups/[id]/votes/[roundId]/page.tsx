@@ -6,7 +6,6 @@ import {
   AddFromLibrary,
   Deadline,
   EndRoundControls,
-  LiveVotes,
   RoundReplay,
   VoteBoard,
   type BoardItem,
@@ -60,7 +59,6 @@ export default async function RoundPage({
 
   return (
     <div className="space-y-6">
-      <LiveVotes groupId={id} />
       <Link href={`/groups/${id}/votes`} className="text-sm text-zinc-500 hover:underline">
         ← 全部投票
       </Link>
