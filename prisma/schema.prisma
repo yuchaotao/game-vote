@@ -18,6 +18,8 @@ model User {
   emailVerifiedAt DateTime?
   /// Null for accounts created through Steam that never set a password.
   passwordHash    String?
+  /// Default home page (a group tab, #41); null = the last page visited on this device.
+  homePath        String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
