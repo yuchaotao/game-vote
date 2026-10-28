@@ -71,6 +71,10 @@ test("unread counts show on the group list and tab, and clear when read", async 
 
   await openChat(friend.page, path);
   await expect(log(friend.page).getByText("上线了")).toBeVisible();
+  // Leaving the chat for another tab doesn't bring the old count back.
+  await friend.page.getByRole("link", { name: "游戏库" }).click();
+  await expect(friend.page).toHaveURL(/\/games$/);
+  await expect(friend.page.getByLabel(/条未读消息/)).toHaveCount(0);
   await expect
     .poll(async () => {
       await friend.page.goto("/groups");
