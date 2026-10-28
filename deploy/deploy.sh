@@ -29,9 +29,15 @@ done
 ln -sf "$ENV_FILE" .env
 
 if ((pull)); then
+  before=$(git rev-parse HEAD:deploy/deploy.sh)
   git fetch --quiet origin main
   git checkout --quiet main
   git reset --quiet --hard origin/main
+  # bash keeps running the copy it started with; switch to the updated script.
+  if [[ $(git rev-parse HEAD:deploy/deploy.sh) != "$before" ]]; then
+    echo "deploy.sh changed; re-running the new version"
+    exec deploy/deploy.sh --no-pull "${@}"
+  fi
 fi
 echo "Deploying $(git log -1 --format='%h %s')"
 
