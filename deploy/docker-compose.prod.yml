@@ -30,3 +30,7 @@ services:
 
   worker:
     image: game-vote:prod
+    # Start only after web is healthy, i.e. after `prisma migrate deploy` has run;
+    # otherwise the worker's first scheduled jobs can hit tables that don't exist yet.
+    depends_on:
+      web: { condition: service_healthy }
