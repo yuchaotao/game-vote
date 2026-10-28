@@ -33,9 +33,9 @@ export async function submitLogin(page: Page, identifier: string, password: stri
   await page.getByRole("button", { name: "登录", exact: true }).click();
 }
 
-/** The current user's friend code as shown on the home page. */
+/** The current user's friend code as shown in settings. */
 export async function friendCodeOf(page: Page): Promise<string> {
-  await page.goto("/");
+  await page.goto("/settings");
   return (await page.getByRole("main").locator("code").first().textContent())!.trim();
 }
 
