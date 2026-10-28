@@ -10,6 +10,7 @@ import {
   RequestActions,
   SuggestionAddButton,
 } from "@/components/friends";
+import { PresenceBadge } from "@/components/play";
 import { Alert, Avatar, buttonClass, Card, SteamIcon } from "@/components/ui";
 import { requireUser } from "@/lib/auth/session";
 import { formatFriendCode } from "@/lib/auth/validation";
@@ -21,10 +22,19 @@ import {
   steamSuggestions,
   type PublicUser,
 } from "@/lib/friends/service";
+import { presenceFor } from "@/lib/play/service";
 
 export const metadata = { title: "好友 · Game Vote" };
 
-function UserLine({ user, children }: { user: PublicUser; children?: React.ReactNode }) {
+function UserLine({
+  user,
+  status,
+  children,
+}: {
+  user: PublicUser;
+  status?: React.ReactNode;
+  children?: React.ReactNode;
+}) {
   return (
     <li className="flex items-center justify-between gap-3 py-3">
       <div className="flex min-w-0 items-center gap-3">
@@ -32,6 +42,7 @@ function UserLine({ user, children }: { user: PublicUser; children?: React.React
         <div className="min-w-0">
           <p className="truncate font-medium">{user.displayName}</p>
           <p className="truncate font-mono text-xs text-zinc-500">{formatFriendCode(user)}</p>
+          {status}
         </div>
       </div>
       <div className="shrink-0">{children}</div>
@@ -74,6 +85,7 @@ export default async function FriendsPage({
     steamSuggestions(user.id),
   ]);
 
+  const presence = await presenceFor(friends.map((f) => f.id));
   const inviteRows = await Promise.all(
     invites.map(async (i) => {
       const url = absoluteUrl(`/invite/${i.code}`);
@@ -135,7 +147,7 @@ export default async function FriendsPage({
         ) : (
           <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
             {friends.map((f) => (
-              <UserLine key={f.id} user={f}>
+              <UserLine key={f.id} user={f} status={<PresenceBadge presence={presence[f.id]} />}>
                 <RemoveFriendButton friendId={f.id} name={f.displayName} />
               </UserLine>
             ))}

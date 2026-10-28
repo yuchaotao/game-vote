@@ -80,6 +80,42 @@ export async function createUserFromProfile(profile: ExternalProfile): Promise<U
   });
 }
 
+/** Placeholder name used when Steam's API couldn't be reached at sign-up / linking. */
+export const steamFallbackName = (steamId: string) => `steam${steamId.slice(-6)}`;
+
+/**
+ * Keeps a linked Steam account's name and avatar current. The user's own site
+ * name is only replaced while it is still the placeholder, and the avatar only
+ * filled in when they have none.
+ */
+export async function refreshSteamProfile(
+  steamId: string,
+  profile: { personaName: string | null; avatarUrl: string | null },
+) {
+  const { personaName, avatarUrl } = profile;
+  if (!personaName) return;
+  const account = await db.account.findUnique({
+    where: { provider_providerAccountId: { provider: "steam", providerAccountId: steamId } },
+  });
+  if (!account) return;
+  if (account.displayName !== personaName || (avatarUrl && account.avatarUrl !== avatarUrl)) {
+    await db.account.update({
+      where: { id: account.id },
+      data: { displayName: personaName, avatarUrl: avatarUrl ?? account.avatarUrl },
+    });
+  }
+  await db.user.updateMany({
+    where: { id: account.userId, displayName: steamFallbackName(steamId) },
+    data: { displayName: personaName.slice(0, 32) },
+  });
+  if (avatarUrl) {
+    await db.user.updateMany({
+      where: { id: account.userId, avatarUrl: null },
+      data: { avatarUrl },
+    });
+  }
+}
+
 export type LinkResult = "linked" | "already-linked" | "taken-by-other" | "provider-in-use";
 
 export async function linkAccount(userId: string, profile: ExternalProfile): Promise<LinkResult> {

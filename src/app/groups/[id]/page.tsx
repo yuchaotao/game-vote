@@ -8,9 +8,12 @@ import {
   LeaveGroupButton,
   MemberOwnerActions,
 } from "@/components/groups";
+import { AutoRefresh, CheckInCard, PresenceBadge, TogetherList } from "@/components/play";
 import { Avatar, Card } from "@/components/ui";
 import { requireUser } from "@/lib/auth/session";
+import { listLibrary } from "@/lib/games/service";
 import { getGroupForMember, invitableFriends } from "@/lib/groups/service";
+import { groupTogether, openCheckIn, presenceFor } from "@/lib/play/service";
 
 export default async function GroupMembersPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -20,6 +23,12 @@ export default async function GroupMembersPage({ params }: { params: Promise<{ i
     invitableFriends(id, user.id),
   ]);
   if (!group) notFound();
+  const [presence, checkIn, together, library] = await Promise.all([
+    presenceFor(group.members.map((m) => m.user.id)),
+    openCheckIn(user.id),
+    groupTogether(id, { limit: 5 }),
+    listLibrary(id),
+  ]);
 
   const visibleRequests = group.isOwner
     ? group.joinRequests
@@ -27,6 +36,7 @@ export default async function GroupMembersPage({ params }: { params: Promise<{ i
 
   return (
     <div className="space-y-6">
+      <AutoRefresh />
       {visibleRequests.length > 0 && (
         <Card className="space-y-2">
           <h2 className="text-lg font-semibold">
@@ -77,6 +87,7 @@ export default async function GroupMembersPage({ params }: { params: Promise<{ i
                     <p className="text-xs text-zinc-500">
                       {joinedAt.toLocaleDateString("zh-CN", { timeZone: "Asia/Shanghai" })} 加入
                     </p>
+                    <PresenceBadge presence={presence[m.id]} />
                   </div>
                 </div>
                 {group.isOwner && !isOwner && (
@@ -86,6 +97,28 @@ export default async function GroupMembersPage({ params }: { params: Promise<{ i
             );
           })}
         </ul>
+      </Card>
+
+      <Card className="space-y-3">
+        <h2 className="text-lg font-semibold">开黑签到</h2>
+        <CheckInCard
+          groupId={id}
+          games={library.map((e) => ({ id: e.game.id, name: e.game.name }))}
+          current={
+            checkIn
+              ? { gameId: checkIn.game.id, name: checkIn.game.name, since: checkIn.startedAt }
+              : null
+          }
+        />
+      </Card>
+
+      <Card className="space-y-2">
+        <h2 className="text-lg font-semibold">最近一起玩</h2>
+        <TogetherList
+          groupId={id}
+          items={together}
+          empty="近 30 天还没有检测到群成员一起玩。两人以上同时玩同一个游戏 5 分钟以上会记录在这里。"
+        />
       </Card>
 
       <Card className="space-y-3">

@@ -13,9 +13,10 @@ try {
 
 const basePath = process.env.BASE_PATH ?? "";
 
-// Steam store requests go to a local mock (e2e/steam-mock.mjs).
+// Steam store and Web API requests go to a local mock (e2e/steam-mock.mjs).
 const steamMockPort = 4100;
 process.env.STEAM_STORE_URL ??= `http://localhost:${steamMockPort}`;
+process.env.STEAM_API_URL ??= `http://localhost:${steamMockPort}`;
 
 export default defineConfig({
   testDir: "e2e",

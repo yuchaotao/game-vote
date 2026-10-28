@@ -12,6 +12,7 @@ import {
   type SteamGameData,
   type SteamSearchResult,
   type SteamStoreConfig,
+  steamStoreUrl,
 } from "./steam-store";
 
 export class GameError extends Error {}
@@ -248,4 +249,31 @@ export async function refreshStaleSteamGames(limit = 30, gapMs = 2000) {
     if (await refreshSteamGame(g.id)) refreshed++;
   }
   return { checked: stale.length, refreshed };
+}
+
+/**
+ * Game row for an app seen in someone's Steam status, created on first sight
+ * (from the store when it answers, else just the name Steam reported). Null
+ * for apps that aren't games (tools, soundtracks), so they never show up as play.
+ */
+export async function steamGameFromPresence(appId: string, name: string | null) {
+  const where = { source_externalId: { source: GameSource.STEAM, externalId: appId } };
+  const existing = await db.game.findUnique({ where });
+  if (existing) return existing;
+  const notGameKey = `steam:not-a-game:${appId}`;
+  if (await redis().exists(notGameKey)) return null;
+
+  const app = await fetchSteamApp(appId, steamConfig());
+  if (!app.ok && app.reason === "not-a-game") {
+    await redis().set(notGameKey, "1", "EX", 7 * 24 * 3600);
+    return null;
+  }
+  const data = app.ok
+    ? steamColumns(app.game)
+    : { name: name ?? `Steam App ${appId}`, storeUrl: steamStoreUrl(appId) };
+  return db.game.upsert({
+    where,
+    create: { source: GameSource.STEAM, externalId: appId, ...data },
+    update: {},
+  });
 }

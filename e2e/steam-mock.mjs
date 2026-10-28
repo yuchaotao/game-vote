@@ -55,6 +55,9 @@ const apps = {
   2000: { type: "music", name: "Some Soundtrack" },
 };
 
+// Steam Web API player status, set by tests through POST /mock/players.
+const players = {};
+
 const reviews = {
   1086940: {
     review_score_desc: "好评如潮",
@@ -74,6 +77,32 @@ createServer((req, res) => {
   const path = url.pathname;
 
   if (path === "/health") return json(res, { ok: true });
+
+  // Steam Web API presence. Tests set a player's status with
+  // POST /mock/players {"<steamid>": {gameid, gameextrainfo, personastate, communityvisibilitystate}}.
+  if (path === "/mock/players" && req.method === "POST") {
+    let body = "";
+    req.on("data", (c) => (body += c));
+    req.on("end", () => {
+      Object.assign(players, JSON.parse(body || "{}"));
+      json(res, { ok: true });
+    });
+    return;
+  }
+
+  if (path === "/ISteamUser/GetPlayerSummaries/v2/") {
+    const ids = (url.searchParams.get("steamids") ?? "").split(",").filter(Boolean);
+    return json(res, {
+      response: {
+        players: ids.map((steamid) => ({
+          steamid,
+          personastate: 0,
+          communityvisibilitystate: 3,
+          ...players[steamid],
+        })),
+      },
+    });
+  }
 
   if (path === "/api/appdetails") {
     const id = url.searchParams.get("appids");
