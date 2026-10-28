@@ -76,7 +76,9 @@ export function DiscordChannelForm({
             ))}
           </select>
         </label>
-        <Button disabled={pending || (!options && !current)}>{pending ? "连接中…" : "保存"}</Button>
+        <Button disabled={pending || (!options && !current)}>
+          {pending ? "连接中…" : "保存频道"}
+        </Button>
       </form>
       {current && last && (
         <p className="text-xs text-zinc-500">

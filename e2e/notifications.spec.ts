@@ -136,11 +136,11 @@ test("with a Discord channel linked, group events go there and @mention members"
     "测试服务器 · #只读公告",
   ]);
   await picker.selectOption({ label: "测试服务器 · #只读公告" });
-  await owner.page.getByRole("button", { name: "保存", exact: true }).last().click();
+  await owner.page.getByRole("button", { name: "保存频道" }).click();
   await expect(owner.page.getByRole("main").getByRole("alert")).toContainText("没有发言权限");
 
   await picker.selectOption({ label: "测试服务器 · #general" });
-  await owner.page.getByRole("button", { name: "保存", exact: true }).last().click();
+  await owner.page.getByRole("button", { name: "保存频道" }).click();
   await expect(owner.page.getByText("已连接 Discord 频道")).toBeVisible();
   const before = (await channelMessages("100")).length;
   expect((await channelMessages("100")).at(-1)?.content).toContain("已连接 Game Vote 群");
