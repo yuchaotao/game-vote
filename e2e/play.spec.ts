@@ -99,6 +99,20 @@ test("Steam detection: live status, then a together session on the timeline", as
   const totals = owner.page.getByRole("list", { name: "成员游玩时长" });
   await expect(totals.getByRole("listitem")).toHaveCount(2);
   await expect(totals).toContainText("40 分钟");
+  await expect(owner.page.getByRole("definition").first()).not.toHaveText("0");
+
+  // Hot ranking: the game the group just played together beats a newer, unplayed one.
+  await owner.page.goto(`${path}/games`);
+  await owner.page.getByRole("textbox", { name: "搜索 Steam 或粘贴链接" }).fill("1086940");
+  await owner.page.getByRole("button", { name: "查找" }).click();
+  await owner.page.getByRole("button", { name: "添加 博德之门3" }).click();
+  await expect(mainStatus(owner.page)).toContainText("已添加《博德之门3》");
+  const cards = owner.page.getByRole("region", { name: "游戏列表" }).getByRole("listitem");
+  await expect(cards).toHaveCount(2);
+  await expect(cards.first()).toContainText("Apex Legends™");
+  await expect(cards.first()).toContainText("🔥");
+  await owner.page.getByLabel("排序").selectOption("最近添加");
+  await expect(cards.first()).toContainText("博德之门3");
 });
 
 test("manual check-in shows to the group and can be ended", async ({ browser }) => {

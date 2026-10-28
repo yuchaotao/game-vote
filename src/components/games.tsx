@@ -14,7 +14,14 @@ import {
   removeFromLibraryAction,
   updateManualGameAction,
 } from "@/lib/games/actions";
-import { formatPrice, normalizeGameName, sortLibrary, type LibrarySort } from "@/lib/games/rules";
+import type { Hotness } from "@/lib/games/hotness";
+import {
+  formatPrice,
+  isMultiplayer,
+  normalizeGameName,
+  sortLibrary,
+  type LibrarySort,
+} from "@/lib/games/rules";
 import type { IgdbLookup, LibraryEntry, SteamLookup } from "@/lib/games/service";
 import { Alert, Avatar, Button, Field } from "./ui";
 
@@ -147,7 +154,7 @@ const SOURCE_LABEL: Record<Game["source"], string> = {
   MANUAL: "手动添加",
 };
 
-function GameCard({ entry, groupId }: { entry: LibraryEntry; groupId: string }) {
+function GameCard({ entry, groupId, hot }: { entry: LibraryEntry; groupId: string; hot: number }) {
   const g = entry.game;
   return (
     <li>
@@ -159,7 +166,14 @@ function GameCard({ entry, groupId }: { entry: LibraryEntry; groupId: string }) 
         <div className="flex flex-1 flex-col gap-2 p-3">
           <div className="flex items-start justify-between gap-2">
             <h3 className="font-semibold leading-tight group-hover:text-indigo-600">{g.name}</h3>
-            <span className="shrink-0 text-xs text-zinc-400">{SOURCE_LABEL[g.source]}</span>
+            <span className="flex shrink-0 items-center gap-2 text-xs text-zinc-400">
+              {hot > 0 && (
+                <span title="热度" className="font-medium text-orange-600 dark:text-orange-400">
+                  🔥 {hot}
+                </span>
+              )}
+              {SOURCE_LABEL[g.source]}
+            </span>
           </div>
           <ReviewSummary game={g} />
           {g.genres.length > 0 && (
@@ -187,24 +201,57 @@ function GameCard({ entry, groupId }: { entry: LibraryEntry; groupId: string }) 
 }
 
 const SORTS: { value: LibrarySort; label: string }[] = [
-  { value: "recent", label: "最近添加" },
+  { value: "hot", label: "热度" },
   { value: "rating", label: "评分" },
+  { value: "recent", label: "最近添加" },
   { value: "name", label: "名称" },
 ];
 
-export function GameLibrary({ groupId, entries }: { groupId: string; entries: LibraryEntry[] }) {
-  const [sort, setSort] = useState<LibrarySort>("recent");
+const selectClass =
+  "rounded-lg border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-950";
+
+export function GameLibrary({
+  groupId,
+  entries,
+  hot,
+}: {
+  groupId: string;
+  entries: LibraryEntry[];
+  hot: Record<string, Hotness>;
+}) {
+  const [sort, setSort] = useState<LibrarySort>("hot");
   const [filter, setFilter] = useState("");
+  const [genre, setGenre] = useState("");
+  const [source, setSource] = useState<"" | Game["source"]>("");
+  const [multiplayer, setMultiplayer] = useState(false);
+
+  const genres = useMemo(
+    () =>
+      [...new Set(entries.flatMap((e) => e.game.genres))].sort((a, b) =>
+        a.localeCompare(b, "zh-CN"),
+      ),
+    [entries],
+  );
+  const sources = useMemo(() => [...new Set(entries.map((e) => e.game.source))], [entries]);
+
   const shown = useMemo(() => {
     const q = normalizeGameName(filter);
-    const flat = entries.map((e) => ({ ...e.game, addedAt: e.addedAt, entry: e }));
-    const matching = q
-      ? flat.filter((g) =>
-          [g.name, ...g.genres, ...g.features].some((s) => normalizeGameName(s).includes(q)),
-        )
-      : flat;
+    const flat = entries.map((e) => ({
+      ...e.game,
+      addedAt: e.addedAt,
+      hot: hot[e.gameId]?.score ?? 0,
+      entry: e,
+    }));
+    const matching = flat.filter(
+      (g) =>
+        (!q ||
+          [g.name, ...g.genres, ...g.features].some((s) => normalizeGameName(s).includes(q))) &&
+        (!genre || g.genres.includes(genre)) &&
+        (!source || g.source === source) &&
+        (!multiplayer || isMultiplayer(g.features)),
+    );
     return sortLibrary(matching, sort).map((g) => g.entry);
-  }, [entries, sort, filter]);
+  }, [entries, hot, sort, filter, genre, source, multiplayer]);
 
   if (entries.length === 0) {
     return (
@@ -229,7 +276,7 @@ export function GameLibrary({ groupId, entries }: { groupId: string; entries: Li
           <select
             value={sort}
             onChange={(e) => setSort(e.target.value as LibrarySort)}
-            className="rounded-lg border border-zinc-300 bg-white px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+            className={selectClass}
           >
             {SORTS.map((s) => (
               <option key={s.value} value={s.value}>
@@ -238,18 +285,88 @@ export function GameLibrary({ groupId, entries }: { groupId: string; entries: Li
             ))}
           </select>
         </label>
-        <span className="text-sm text-zinc-500">共 {entries.length} 个</span>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        {genres.length > 0 && (
+          <select
+            aria-label="按类型筛选"
+            value={genre}
+            onChange={(e) => setGenre(e.target.value)}
+            className={selectClass}
+          >
+            <option value="">全部类型</option>
+            {genres.map((g) => (
+              <option key={g} value={g}>
+                {g}
+              </option>
+            ))}
+          </select>
+        )}
+        {sources.length > 1 && (
+          <select
+            aria-label="按来源筛选"
+            value={source}
+            onChange={(e) => setSource(e.target.value as "" | Game["source"])}
+            className={selectClass}
+          >
+            <option value="">全部来源</option>
+            {sources.map((s) => (
+              <option key={s} value={s}>
+                {SOURCE_LABEL[s]}
+              </option>
+            ))}
+          </select>
+        )}
+        <label className="flex items-center gap-1.5 text-zinc-600 dark:text-zinc-400">
+          <input
+            type="checkbox"
+            checked={multiplayer}
+            onChange={(e) => setMultiplayer(e.target.checked)}
+          />
+          只看能一起玩的
+        </label>
+        <span className="ml-auto text-zinc-500">
+          {shown.length === entries.length
+            ? `共 ${entries.length} 个`
+            : `${shown.length} / ${entries.length} 个`}
+        </span>
       </div>
       {shown.length === 0 ? (
         <p className="text-sm text-zinc-500">没有匹配的游戏</p>
       ) : (
         <ul className="grid gap-4 sm:grid-cols-2">
           {shown.map((e) => (
-            <GameCard key={e.gameId} entry={e} groupId={groupId} />
+            <GameCard key={e.gameId} entry={e} groupId={groupId} hot={hot[e.gameId]?.score ?? 0} />
           ))}
         </ul>
       )}
     </section>
+  );
+}
+
+/** Where a game's hot score comes from (detail page). */
+export function HotnessBreakdown({ hot }: { hot: Hotness }) {
+  const parts: [string, number][] = [
+    ["群成员游玩", hot.play],
+    ["一起玩加成", hot.together],
+    ["投票", hot.votes],
+    ["新加入", hot.fresh],
+  ];
+  return (
+    <div className="space-y-2">
+      <p className="text-2xl font-bold">
+        🔥 {hot.score}
+        <span className="ml-2 text-sm font-normal text-zinc-500">近 14 天，越近权重越高</span>
+      </p>
+      <dl aria-label="热度构成" className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-4">
+        {parts.map(([label, value]) => (
+          <div key={label} className="flex justify-between gap-2 sm:block">
+            <dt className="text-zinc-500">{label}</dt>
+            <dd className="font-medium">{Math.round(value)}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 }
 
@@ -464,7 +581,10 @@ export function AddGamePanel({ groupId, igdb }: { groupId: string; igdb: boolean
         <button
           type="button"
           aria-expanded={manual}
-          onClick={() => setManual((m) => !m)}
+          onClick={() => {
+            setManual((m) => !m);
+            setNotice(undefined); // the manual form reports its own result
+          }}
           className="text-sm text-indigo-600 hover:underline"
         >
           {manual ? "收起手动添加" : "都找不到？手动添加"}

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   canManageGroupGame,
   formatPrice,
+  isMultiplayer,
   manualGameSchema,
   normalizeGameName,
   sortLibrary,
@@ -86,5 +87,19 @@ describe("sortLibrary", () => {
     expect(names(sortLibrary(games, "recent"))).toEqual(["C", "B", "A"]);
     expect(names(sortLibrary(games, "rating"))).toEqual(["A", "B", "C"]);
     expect(names(sortLibrary(games, "name"))).toEqual(["A", "B", "C"]);
+  });
+
+  it("by hot score, then rating", () => {
+    const hot = games.map((g) => ({ ...g, hot: g.name === "C" ? 50 : 0 }));
+    expect(names(sortLibrary(hot, "hot"))).toEqual(["C", "A", "B"]);
+  });
+});
+
+describe("isMultiplayer", () => {
+  it("is true for any way to play together", () => {
+    expect(isMultiplayer(["多人", "单人"])).toBe(true);
+    expect(isMultiplayer(["在线合作"])).toBe(true);
+    expect(isMultiplayer(["单人"])).toBe(false);
+    expect(isMultiplayer([])).toBe(false);
   });
 });

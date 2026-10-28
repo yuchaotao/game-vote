@@ -132,6 +132,44 @@ test("manual games: add, duplicate check, edit, permissions, remove", async ({ b
   await expect(owner.page.getByText("游戏库还是空的")).toBeVisible();
 });
 
+test("filter the library by genre, source and multiplayer", async ({ browser }) => {
+  const { owner, path } = await groupOfTwo(browser);
+  const page = owner.page;
+  await page.goto(`${path}/games`);
+  await find(page, "apex");
+  await page.getByRole("button", { name: "添加 Apex Legends™" }).click();
+  await expect(mainStatus(page)).toBeVisible();
+  await find(page, "1086940");
+  await page.getByRole("button", { name: "添加 博德之门3" }).click();
+  await expect(mainStatus(page)).toContainText("博德之门3");
+  await page.getByRole("button", { name: "都找不到？手动添加" }).click();
+  await page.getByLabel("游戏名").fill("单人解谜小游戏");
+  await page.getByLabel("类型", { exact: true }).fill("解谜");
+  await page.getByLabel("游玩方式").fill("单人");
+  await page.getByRole("button", { name: "添加到游戏库" }).click();
+  await expect(mainStatus(page)).toContainText("单人解谜小游戏");
+
+  const cards = library(page).getByRole("listitem");
+  await expect(cards).toHaveCount(3);
+  // New games all get the same freshness boost, so every card shows a hot score.
+  await expect(cards.first()).toContainText("🔥");
+
+  await page.getByLabel("按类型筛选").selectOption("角色扮演");
+  await expect(cards).toHaveCount(1);
+  await expect(cards).toContainText("博德之门3");
+  await page.getByLabel("按类型筛选").selectOption("全部类型");
+
+  await page.getByLabel("按来源筛选").selectOption("手动添加");
+  await expect(cards).toHaveCount(1);
+  await expect(cards).toContainText("单人解谜小游戏");
+  await page.getByLabel("按来源筛选").selectOption("全部来源");
+
+  await page.getByLabel("只看能一起玩的").check();
+  await expect(cards).toHaveCount(2);
+  await expect(library(page)).not.toContainText("单人解谜小游戏");
+  await expect(library(page)).toContainText("2 / 3 个");
+});
+
 test("only the adder or the owner sees remove", async ({ browser }) => {
   const { owner, friend, path } = await groupOfTwo(browser);
   await owner.page.goto(`${path}/games`);
