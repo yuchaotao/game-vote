@@ -19,8 +19,17 @@ HTTPS 证书由 CT 101 的 Caddy 自动申请和续期；本应用只提供 HTTP
 git clone https://github.com/yuchaotao/game-vote.git /opt/game-vote
 cd /opt/game-vote
 cp .env.example deploy/.env.prod   # 按下文填写
+docker login ghcr.io -u yuchaotao  # 见下文「镜像仓库登录」
 deploy/deploy.sh
 ```
+
+### 镜像仓库登录
+
+生产镜像由 GitHub Actions 构建（`main` 上所有检查和 e2e 通过后），推送到私有仓库
+`ghcr.io/yuchaotao/game-vote`，标签为 `sha-<commit>` 和 `main`。CT 102 需要登录一次才能拉取：
+
+1. GitHub → Settings → Developer settings → Personal access tokens (classic)，新建 token，只勾选 `read:packages`
+2. 在 CT 102 上执行 `docker login ghcr.io -u yuchaotao`，密码处粘贴 token（保存在 `/root/.docker/config.json`）
 
 `deploy/.env.prod` 中与开发环境不同的部分：
 
@@ -44,7 +53,10 @@ POSTGRES_PASSWORD=<openssl rand -hex 24>
 /opt/game-vote/deploy/deploy.sh
 ```
 
-拉取 `main` → 备份数据库 → 构建镜像 → 重启（启动时自动执行数据库迁移）→ 等待健康检查通过。
+拉取 `main` → 拉取该 commit 的镜像（CI 还没构建完会等待，最多 30 分钟）→ 备份数据库 → 重启（启动时自动执行数据库迁移）→ 等待健康检查通过 → 清理旧镜像（保留最近 3 个）。
+
+- `--build`：不拉取，在本机构建镜像（GHCR 不可用时的后备，比较吃资源）
+- 回滚：`git checkout <旧 commit>` 后执行 `deploy/deploy.sh --no-pull`。注意数据库迁移不会回退，回滚前确认旧版本兼容当前的表结构，必要时从备份恢复
 
 ## 备份
 
