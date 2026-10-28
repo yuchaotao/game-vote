@@ -1,5 +1,6 @@
 import { refreshStaleIgdbGames, refreshStaleSteamGames } from "@/lib/games/service";
 import { pollSteam, tickManualSessions } from "@/lib/play/service";
+import { checkPrompts } from "@/lib/votes/prompts";
 import { closeDueRounds } from "@/lib/votes/service";
 import { QUEUE, WORKER_HEARTBEAT_KEY } from "@/lib/queues";
 import { redis } from "@/lib/redis";
@@ -41,6 +42,12 @@ export const JOBS = {
     queue: QUEUE.votes,
     every: 60_000,
     run: closeDueRounds,
+  },
+  // "You're playing a front-runner together: end the vote?" (after presence polls).
+  "check-prompts": {
+    queue: QUEUE.votes,
+    every: 2 * 60_000,
+    run: checkPrompts,
   },
 } satisfies Record<string, Job>;
 

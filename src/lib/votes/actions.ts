@@ -16,6 +16,7 @@ import {
 } from "@/lib/games/service";
 import { manualGameSchema } from "@/lib/games/rules";
 import { isActiveMember } from "@/lib/groups/service";
+import { resolvePrompt, type PromptChoice } from "./prompts";
 import { roundSettingsSchema } from "./rules";
 import {
   addCandidate,
@@ -184,4 +185,20 @@ export async function addManualCandidateAction(
   return asMember(groupId, (userId) =>
     addNewAsCandidate(groupId, roundId, userId, () => addManualGame(groupId, userId, parsed.data)),
   );
+}
+
+export async function resolvePromptAction(
+  groupId: string,
+  promptId: string,
+  choice: PromptChoice,
+): Promise<FormState> {
+  if (!["continue", "next", "end"].includes(choice)) return { error: "无效的选择" };
+  let nextId: string | null = null;
+  const result = await asMember(groupId, async (userId) => {
+    nextId = await resolvePrompt(groupId, promptId, userId, choice);
+  });
+  if (result?.error) return result;
+  refresh(groupId);
+  if (nextId) redirect(`/groups/${groupId}/votes/${nextId}`);
+  return { ok: choice === "continue" ? "已继续当前投票" : "投票已结束" };
 }

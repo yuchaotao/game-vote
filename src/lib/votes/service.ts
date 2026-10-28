@@ -22,7 +22,7 @@ export class VoteError extends Error {}
 const votesChannel = (groupId: string) => `group:${groupId}:votes`;
 
 /** Tells open pages of this group that a round changed. */
-async function notifyChanged(groupId: string, roundId: string) {
+export async function notifyChanged(groupId: string, roundId: string) {
   await redis().publish(votesChannel(groupId), JSON.stringify({ roundId }));
 }
 
@@ -170,6 +170,11 @@ export async function endRound(
     include: { winner: { select: { name: true } } },
   });
   if (count === 0) return round;
+  // Ended some other way: an unanswered prompt no longer applies.
+  await db.votePrompt.updateMany({
+    where: { roundId, status: "PENDING" },
+    data: { status: "EXPIRED", resolvedAt: new Date() },
+  });
 
   const who = userId ? `${await nameOf(userId)} ` : "";
   const result = round.winner ? `胜出：《${round.winner.name}》` : "没有人投票";

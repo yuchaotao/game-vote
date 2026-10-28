@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { GroupTabs } from "@/components/group-tabs";
+import { PromptBanner } from "@/components/prompt-banner";
+import { LiveVotes } from "@/components/votes";
 import { requireUser } from "@/lib/auth/session";
 import { unreadCounts } from "@/lib/chat/service";
 import { getGroupForMember } from "@/lib/groups/service";
+import { pendingPrompt } from "@/lib/votes/prompts";
 
 export default async function GroupLayout({
   children,
@@ -14,9 +17,10 @@ export default async function GroupLayout({
 }) {
   const { id } = await params;
   const user = await requireUser();
-  const [group, unread] = await Promise.all([
+  const [group, unread, prompt] = await Promise.all([
     getGroupForMember(id, user.id),
     unreadCounts(user.id),
+    pendingPrompt(id),
   ]);
   if (!group) notFound();
 
@@ -33,6 +37,18 @@ export default async function GroupLayout({
           </p>
         )}
       </div>
+      <LiveVotes groupId={id} />
+      {prompt && (
+        <PromptBanner
+          groupId={id}
+          promptId={prompt.id}
+          game={prompt.game}
+          roundLabel={`第 ${prompt.round.number} 轮投票`}
+          players={prompt.players}
+          memberCount={prompt.memberCount}
+          rank={prompt.rank}
+        />
+      )}
       <GroupTabs groupId={id} unread={unread[id] ?? 0} />
       {children}
     </main>
