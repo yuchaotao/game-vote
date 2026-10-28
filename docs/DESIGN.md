@@ -58,6 +58,8 @@
 - **游玩记录**：每个游戏显示"什么时间段、哪些群成员一起玩了多久"（时间线）。
 - **热度排序**：最近 N 天群成员游玩时长加权 + 投票得票 + 新近添加加成；另可按评分、添加时间、名称排序。
 - 任何群成员都可以添加游戏。
+- Steam 游戏元数据（商店 `appdetails` + 评测摘要 `appreviews`）全站共享一份，24 小时后过期；添加时过期即重新拉取，worker 每小时刷新一批。评测摘要接口对部分服务器 IP 会重定向，此时退回显示推荐数 / Metacritic。
+- 手动添加的游戏只属于创建它的群。添加者或群主可以编辑（仅手动游戏）和移出；移出只删除群与游戏的关联，游戏记录保留给投票 / 游玩历史。
 
 ## 6. 投票
 
@@ -117,6 +119,7 @@ VotePrompt(round, game, status), NotificationPreference, NotificationLog.
 `STEAM_API_KEY`, `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_BOT_TOKEN`,
 `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM`,
 `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`, `STEAM_BOT_USERNAME`, `STEAM_BOT_PASSWORD`（可选）。
+`STEAM_STORE_COUNTRY`（Steam 价格所用地区，默认 `us`）；`STEAM_STORE_URL` 仅供测试指向 Steam 商店的本地模拟。
 
 ## 11. 开发路线（每项对应一个 issue + PR）
 

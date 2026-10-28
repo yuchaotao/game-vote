@@ -38,6 +38,7 @@ model User {
   groupInvitesSent   GroupJoinRequest[] @relation("JoinRequestInviter")
   groupDecisionsMade GroupJoinRequest[] @relation("JoinRequestDecider")
   chatMessages       ChatMessage[]
+  gamesAdded         GroupGame[]
 }
 
 model Group {
@@ -54,6 +55,7 @@ model Group {
   members      GroupMember[]
   joinRequests GroupJoinRequest[]
   messages     ChatMessage[]
+  games        GroupGame[]
 
   @@index([ownerId])
 }
@@ -234,4 +236,66 @@ model ChatMessage {
   author User? @relation(fields: [authorId], references: [id], onDelete: SetNull)
 
   @@index([groupId, createdAt])
+}
+
+enum GameSource {
+  STEAM
+  IGDB
+  MANUAL
+}
+
+/// Game metadata. Steam / IGDB games are shared by every group (one row per
+/// external id); manual games are created by, and only listed in, one group.
+model Game {
+  id                String     @id @default(cuid())
+  source            GameSource
+  /// Steam appid / IGDB id. Null for manual games.
+  externalId        String?
+  name              String
+  coverUrl          String?
+  description       String     @default("")
+  genres            String[]
+  /// Ways to play together: Steam categories / IGDB game modes (多人, 在线合作, ...).
+  features          String[]
+  /// Platforms or launchers (Windows, EA App, ...).
+  platforms         String[]
+  developers        String[]
+  releaseDate       String?
+  screenshots       String[]
+  storeUrl          String?
+  isFree            Boolean    @default(false)
+  /// Prices in the currency's smallest unit.
+  priceFinal        Int?
+  priceInitial      Int?
+  priceCurrency     String?
+  discountPercent   Int?
+  /// Steam: share of positive user reviews; IGDB: rating. 0-100.
+  reviewPercent     Int?
+  reviewCount       Int?
+  /// Localized verdict, e.g. 特别好评.
+  reviewLabel       String?
+  metacritic        Int?
+  metadataUpdatedAt DateTime?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  groupGames GroupGame[]
+
+  @@unique([source, externalId])
+  @@index([source, metadataUpdatedAt])
+}
+
+/// A game in a group's library.
+model GroupGame {
+  groupId   String
+  gameId    String
+  addedById String?
+  addedAt   DateTime @default(now())
+
+  group   Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  game    Game  @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  addedBy User? @relation(fields: [addedById], references: [id], onDelete: SetNull)
+
+  @@id([groupId, gameId])
+  @@index([gameId])
 }
