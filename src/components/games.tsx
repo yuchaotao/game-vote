@@ -14,6 +14,11 @@ import {
   removeFromLibraryAction,
   updateManualGameAction,
 } from "@/lib/games/actions";
+import {
+  addIgdbCandidateAction,
+  addManualCandidateAction,
+  addSteamCandidateAction,
+} from "@/lib/votes/actions";
 import type { Hotness } from "@/lib/games/hotness";
 import {
   formatPrice,
@@ -94,7 +99,12 @@ type GameInfo = Pick<
   | "source"
 >;
 
-export function ReviewSummary({ game }: { game: GameInfo }) {
+type ReviewInfo = Pick<
+  GameInfo,
+  "reviewPercent" | "reviewCount" | "reviewLabel" | "metacritic" | "source"
+>;
+
+export function ReviewSummary({ game }: { game: ReviewInfo }) {
   if (game.reviewPercent !== null) {
     const tone =
       game.reviewPercent >= 80
@@ -457,7 +467,16 @@ const SOURCES: Record<Source, { tab: string; label: string; placeholder: string 
   },
 };
 
-export function AddGamePanel({ groupId, igdb }: { groupId: string; igdb: boolean }) {
+/** Adds games to the library, or (with `roundId`) to the library and a vote's candidates. */
+export function AddGamePanel({
+  groupId,
+  igdb,
+  roundId,
+}: {
+  groupId: string;
+  igdb: boolean;
+  roundId?: string;
+}) {
   const [source, setSource] = useState<Source>("steam");
   const [query, setQuery] = useState("");
   const [steam, setSteam] = useState<SteamLookup>();
@@ -484,7 +503,7 @@ export function AddGamePanel({ groupId, igdb }: { groupId: string; igdb: boolean
   return (
     <section className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-semibold">添加游戏</h2>
+        <h2 className="font-semibold">{roundId ? "添加新游戏为候选" : "添加游戏"}</h2>
         {igdb && (
           <div role="tablist" aria-label="游戏来源" className="flex gap-1 text-sm">
             {(Object.keys(SOURCES) as Source[]).map((s) => (
@@ -549,11 +568,15 @@ export function AddGamePanel({ groupId, igdb }: { groupId: string; igdb: boolean
               r.priceFinal !== null && r.priceCurrency
                 ? formatPrice(r.priceFinal, r.priceCurrency)
                 : null,
-            added: steam.inLibrary.includes(r.appId),
+            // As candidates, library games can still be nominated.
+            added: !roundId && steam.inLibrary.includes(r.appId),
           }))}
           onAdd={async (appId) =>
-            added(await addSteamGameAction(groupId, appId), () =>
-              setSteam({ ...steam, inLibrary: [...steam.inLibrary, appId] }),
+            added(
+              await (roundId
+                ? addSteamCandidateAction(groupId, roundId, appId)
+                : addSteamGameAction(groupId, appId)),
+              () => setSteam({ ...steam, inLibrary: [...steam.inLibrary, appId] }),
             )
           }
         />
@@ -568,11 +591,14 @@ export function AddGamePanel({ groupId, igdb }: { groupId: string; igdb: boolean
             imageUrl: r.imageUrl,
             detail: [r.year, r.platforms.join(" · ")].filter(Boolean).join("　") || null,
             note: r.steamAppId ? "Steam 上也有，将按 Steam 版添加" : undefined,
-            added: igdbLookup.inLibrary.includes(r.igdbId),
+            added: !roundId && igdbLookup.inLibrary.includes(r.igdbId),
           }))}
           onAdd={async (igdbId) =>
-            added(await addIgdbGameAction(groupId, igdbId), () =>
-              setIgdbLookup({ ...igdbLookup, inLibrary: [...igdbLookup.inLibrary, igdbId] }),
+            added(
+              await (roundId
+                ? addIgdbCandidateAction(groupId, roundId, igdbId)
+                : addIgdbGameAction(groupId, igdbId)),
+              () => setIgdbLookup({ ...igdbLookup, inLibrary: [...igdbLookup.inLibrary, igdbId] }),
             )
           }
         />
@@ -591,7 +617,7 @@ export function AddGamePanel({ groupId, igdb }: { groupId: string; igdb: boolean
         </button>
         {manual && (
           <div className="mt-3">
-            <ManualGameForm groupId={groupId} />
+            <ManualGameForm groupId={groupId} roundId={roundId} />
           </div>
         )}
       </div>
@@ -622,15 +648,20 @@ function TextArea({
 export function ManualGameForm({
   groupId,
   game,
+  roundId,
   onSaved,
 }: {
   groupId: string;
   game?: Game;
+  /** Also make it a candidate of this vote. */
+  roundId?: string;
   onSaved?: () => void;
 }) {
   const action = game
     ? updateManualGameAction.bind(null, groupId, game.id)
-    : addManualGameAction.bind(null, groupId);
+    : roundId
+      ? addManualCandidateAction.bind(null, groupId, roundId)
+      : addManualGameAction.bind(null, groupId);
   const [state, formAction, pending] = useActionState(action, undefined);
   const [formKey, setFormKey] = useState(0);
   useEffect(() => {
@@ -683,7 +714,9 @@ export function ManualGameForm({
         hint="可选"
         defaultValue={game?.description}
       />
-      <Button disabled={pending}>{game ? "保存修改" : "添加到游戏库"}</Button>
+      <Button disabled={pending}>
+        {game ? "保存修改" : roundId ? "添加为候选" : "添加到游戏库"}
+      </Button>
     </form>
   );
 }

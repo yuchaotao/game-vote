@@ -26,6 +26,16 @@ import {
 
 export class GameError extends Error {}
 
+/** The game is already in this group's library (carries its id). */
+export class AlreadyInLibraryError extends GameError {
+  constructor(
+    public readonly gameId: string,
+    name: string,
+  ) {
+    super(`《${name}》已经在游戏库里了`);
+  }
+}
+
 /** Steam metadata older than this is refetched (on add, and by the worker). */
 export const STEAM_METADATA_TTL_MS = 24 * 60 * 60 * 1000;
 const SEARCH_CACHE_SECONDS = 600;
@@ -156,7 +166,7 @@ async function addToLibrary(groupId: string, userId: string, game: { id: string;
     await db.groupGame.create({ data: { groupId, gameId: game.id, addedById: userId } });
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
-      throw new GameError(`《${game.name}》已经在游戏库里了`);
+      throw new AlreadyInLibraryError(game.id, game.name);
     }
     throw err;
   }

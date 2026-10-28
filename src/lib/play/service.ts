@@ -295,15 +295,18 @@ export function lastSteamSession(userId: string) {
   });
 }
 
-/**
- * Hot scores for a group's library from members' recent play. Votes join in
- * once voting exists (#9).
- */
+/** Hot scores for a group's library from members' recent play and votes. */
 export async function libraryHotness(
   groupId: string,
   entries: { gameId: string; addedAt: Date }[],
 ): Promise<Record<string, Hotness>> {
   const since = new Date(Date.now() - HOTNESS.windowMs);
-  const { intervals } = await memberIntervals(groupId, since);
-  return hotness(entries, intervals, []);
+  const [{ intervals }, votes] = await Promise.all([
+    memberIntervals(groupId, since),
+    db.voteBallot.findMany({
+      where: { round: { groupId }, castAt: { gte: since } },
+      select: { gameId: true, castAt: true },
+    }),
+  ]);
+  return hotness(entries, intervals, votes);
 }
