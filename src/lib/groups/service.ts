@@ -258,3 +258,20 @@ export async function dissolveGroup(groupId: string, ownerId: string) {
     }),
   ]);
 }
+
+/** The user's group with the newest chat message (or newest membership), for the home page. */
+export async function latestActiveGroupId(userId: string): Promise<string | null> {
+  const mine = { dissolvedAt: null, members: { some: { userId } } };
+  const message = await db.chatMessage.findFirst({
+    where: { group: mine },
+    orderBy: { createdAt: "desc" },
+    select: { groupId: true },
+  });
+  if (message) return message.groupId;
+  const membership = await db.groupMember.findFirst({
+    where: { userId, group: { dissolvedAt: null } },
+    orderBy: { joinedAt: "desc" },
+    select: { groupId: true },
+  });
+  return membership?.groupId ?? null;
+}
