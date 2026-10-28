@@ -140,8 +140,9 @@ test("only one open round; deadlines end rounds; plain end", async ({ browser })
   await startRound(owner.page, path);
   owner.page.once("dialog", (d) => d.accept());
   await owner.page.getByRole("button", { name: "仅结束投票" }).click();
-  await expect(mainStatus(owner.page).first()).toContainText("投票已结束");
+  // The page refreshes into the ended round (the controls and their toast go away).
   await expect(owner.page.getByText("已结束", { exact: true })).toBeVisible();
+  await expect(owner.page.getByText(/手动结束/)).toBeVisible();
 
   // Starting with a deadline in the past is rejected.
   await owner.page.goto(`${path}/votes`);
