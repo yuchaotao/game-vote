@@ -7,6 +7,7 @@ export const QUEUE = {
   games: "games",
   play: "play",
   votes: "votes",
+  notify: "notify",
 } as const;
 
 export const WORKER_HEARTBEAT_KEY = "worker:heartbeat";

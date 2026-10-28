@@ -3,6 +3,7 @@ import { postSystemMessage } from "@/lib/chat/service";
 import { db } from "@/lib/db";
 import { friendPair } from "@/lib/friends/rules";
 import { listFriends, publicUser, type PublicUser } from "@/lib/friends/service";
+import { notify } from "@/lib/notify/service";
 import { inviteOutcome, type InviteOutcome } from "./rules";
 
 export class GroupError extends Error {}
@@ -147,6 +148,11 @@ export async function inviteToGroup(
     } else if (outcome === "requested") {
       await db.groupJoinRequest.create({
         data: { groupId, userId: inviteeId, invitedById: inviterId },
+      });
+      await notify("JOIN_REQUEST", [group.ownerId], {
+        title: `「${group.name}」有新的入群请求`,
+        body: `${await nameOf(inviterId)} 想邀请 ${await nameOf(inviteeId)} 加入「${group.name}」，需要你审批。`,
+        path: `/groups/${groupId}`,
       });
     }
   }

@@ -4,7 +4,14 @@ import { db } from "@/lib/db";
 import { groupPlayIntervals } from "@/lib/play/service";
 import { formatDuration } from "@/lib/play/rules";
 import { PROMPT_RULE, promptCandidates } from "./prompt-rules";
-import { endAndStartNext, endRound, notifyChanged, roundStandings, VoteError } from "./service";
+import {
+  endAndStartNext,
+  endRound,
+  notifyChanged,
+  notifyMembers,
+  roundStandings,
+  VoteError,
+} from "./service";
 
 // "You're already playing a front-runner together: end the vote?" (#10)
 
@@ -61,6 +68,13 @@ export async function checkPrompts(now = new Date()) {
         `它在第 ${round.number} 轮投票中排第 ${candidate.rank}。可以在群页面顶部选择是否结束投票。`,
     );
     await notifyChanged(round.groupId, round.id);
+    await notifyMembers(round.groupId, null, "VOTE_PROMPT", (group) => ({
+      title: `「${group}」：大家正在一起玩《${prompt.game.name}》`,
+      body:
+        `检测到 ${candidate.players}/${memberCount} 名成员正在一起玩《${prompt.game.name}》（已 ${minutes}），` +
+        `它在第 ${round.number} 轮投票中排第 ${candidate.rank}。要结束这轮投票吗？`,
+      path: `/groups/${round.groupId}`,
+    }));
   }
   return { checked: rounds.length, raised };
 }

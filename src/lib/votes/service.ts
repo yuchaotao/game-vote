@@ -2,6 +2,7 @@ import { Prisma, VoteEndReason, VoteEventKind, VoteRoundStatus } from "@prisma/c
 import IORedis from "ioredis";
 import { postSystemMessage } from "@/lib/chat/service";
 import { db } from "@/lib/db";
+import { notify } from "@/lib/notify/service";
 import { env } from "@/lib/env";
 import { publicUser } from "@/lib/friends/service";
 import { getLibraryEntry } from "@/lib/games/service";
@@ -107,7 +108,28 @@ export async function startRound(
     [userId],
   );
   await notifyChanged(groupId, round.id);
+  const starter = await nameOf(userId);
+  await notifyMembers(groupId, userId, "NEW_ROUND", (group) => ({
+    title: `「${group}」发起了${roundLabel(round)}`,
+    body: `${starter} 在「${group}」发起了${roundLabel(round)}，每人最多 ${round.maxVotes} 票，快来投票吧。`,
+    path: `/groups/${groupId}/votes/${round.id}`,
+  }));
   return round;
+}
+
+/** Notifies every member of the group except `exceptUserId`. */
+export async function notifyMembers(
+  groupId: string,
+  exceptUserId: string | null,
+  event: "NEW_ROUND" | "VOTE_PROMPT",
+  content: (groupName: string) => { title: string; body: string; path: string },
+) {
+  const group = await db.group.findUniqueOrThrow({
+    where: { id: groupId },
+    select: { name: true, members: { select: { userId: true } } },
+  });
+  const to = group.members.map((m) => m.userId).filter((id) => id !== exceptUserId);
+  await notify(event, to, content(group.name));
 }
 
 async function openRound(groupId: string, roundId: string) {

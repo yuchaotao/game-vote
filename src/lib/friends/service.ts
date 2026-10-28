@@ -4,6 +4,7 @@ import { randomToken } from "@/lib/auth/crypto";
 import { parseFriendCode } from "@/lib/auth/validation";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
+import { notify } from "@/lib/notify/service";
 import { redis } from "@/lib/redis";
 import { friendPair, inviteStatus, type InviteStatus } from "./rules";
 
@@ -106,6 +107,15 @@ async function sendRequestToUser(fromId: string, to: PublicUser): Promise<SendRe
     where: { fromId_toId: { fromId, toId: to.id } },
     create: { fromId, toId: to.id },
     update: { status: FriendRequestStatus.PENDING, createdAt: new Date(), respondedAt: null },
+  });
+  const from = await db.user.findUniqueOrThrow({
+    where: { id: fromId },
+    select: { displayName: true },
+  });
+  await notify("FRIEND_REQUEST", [to.id], {
+    title: `${from.displayName} 想加你为好友`,
+    body: `${from.displayName} 向你发送了好友申请，去好友页面接受或拒绝。`,
+    path: "/friends",
   });
   return { kind: "sent", to };
 }

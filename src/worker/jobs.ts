@@ -1,4 +1,5 @@
 import { refreshStaleIgdbGames, refreshStaleSteamGames } from "@/lib/games/service";
+import { sendDueNotifications } from "@/lib/notify/service";
 import { pollSteam, tickManualSessions } from "@/lib/play/service";
 import { checkPrompts } from "@/lib/votes/prompts";
 import { closeDueRounds } from "@/lib/votes/service";
@@ -48,6 +49,13 @@ export const JOBS = {
     queue: QUEUE.votes,
     every: 2 * 60_000,
     run: checkPrompts,
+  },
+  // Email / Discord notifications. Events also trigger it right away; this
+  // sweep picks up retries.
+  "send-notifications": {
+    queue: QUEUE.notify,
+    every: 30_000,
+    run: sendDueNotifications,
   },
 } satisfies Record<string, Job>;
 
