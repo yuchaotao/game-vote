@@ -70,7 +70,7 @@ function SampleRound() {
 export function Landing({ children }: { children: ReactNode }) {
   return (
     <main className="grid min-h-[calc(100dvh-3.5rem)] lg:grid-cols-2">
-      <section className="relative overflow-hidden bg-gradient-to-br from-indigo-950 via-violet-900 to-zinc-950 px-6 py-12 text-white sm:px-10 lg:px-14 lg:py-16">
+      <section className="relative overflow-hidden bg-gradient-to-br from-indigo-950 via-violet-900 to-zinc-950 px-6 py-10 text-white sm:px-10 sm:py-12 lg:px-14 lg:py-16">
         {/* Soft glows behind the content. */}
         <div
           aria-hidden
@@ -80,7 +80,7 @@ export function Landing({ children }: { children: ReactNode }) {
           aria-hidden
           className="pointer-events-none absolute -right-16 bottom-0 size-96 rounded-full bg-indigo-500/25 blur-3xl"
         />
-        <div className="relative mx-auto flex h-full max-w-xl flex-col justify-center gap-10">
+        <div className="relative mx-auto flex h-full max-w-xl flex-col justify-center gap-8 lg:gap-10">
           <div className="space-y-5">
             <p className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs text-indigo-100">
               和朋友一起 · 投票选游戏
@@ -102,7 +102,8 @@ export function Landing({ children }: { children: ReactNode }) {
             <SampleRound />
           </div>
 
-          <ul className="grid gap-4 sm:grid-cols-2">
+          {/* Phones skip the feature list so sign-in is on the first screen. */}
+          <ul className="hidden gap-4 sm:grid sm:grid-cols-2">
             {FEATURES.map((f) => (
               <li key={f.title} className="flex gap-3">
                 <span aria-hidden className="text-xl leading-6">
@@ -118,7 +119,7 @@ export function Landing({ children }: { children: ReactNode }) {
         </div>
       </section>
 
-      <section className="flex items-center justify-center bg-white px-6 py-12 sm:px-10 dark:bg-zinc-900">
+      <section className="flex items-center justify-center bg-white px-6 py-10 sm:px-10 sm:py-12 dark:bg-zinc-900">
         <div className="w-full max-w-sm">{children}</div>
       </section>
     </main>
