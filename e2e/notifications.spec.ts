@@ -155,7 +155,8 @@ test("with a Discord channel linked, group events go there and @mention members"
   expect(posts).toHaveLength(1);
   expect(posts[0].content).toBe(`<@${friendDiscord}>`);
   expect(posts[0].allowed_mentions?.users).toEqual([friendDiscord]);
-  expect(posts[0].embeds?.[0].title).toContain("发起了第 1 轮投票");
+  // The post is the round's live vote message (#47).
+  expect(posts[0].embeds?.[0].title).toContain("第 1 轮投票");
   expect(await dmsTo(friendDiscord)).toHaveLength(0);
 
   // The owner sees it went out; members see where notifications go.
