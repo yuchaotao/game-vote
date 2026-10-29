@@ -179,27 +179,29 @@ export function VoteBoard({
             <li
               key={item.game.id}
               aria-label={`第 ${item.rank} 名 ${item.game.name}`}
-              className={`flex items-center gap-3 rounded-xl border p-3 ${
+              // Phones: rank, cover and name on top; votes and the button get the
+              // full width below. Wider: one row with the button on the right.
+              className={`grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-2 rounded-xl border p-3 sm:gap-x-3 [grid-template-areas:'rank_cover_info_info'_'stats_stats_stats_action'] sm:[grid-template-areas:'rank_cover_info_action'_'rank_cover_stats_action'] ${
                 mine
                   ? "border-indigo-400 bg-indigo-50/50 dark:border-indigo-700 dark:bg-indigo-950/30"
                   : "border-zinc-200 dark:border-zinc-800"
               }`}
             >
-              <span className="w-6 shrink-0 text-center text-lg font-bold text-zinc-400">
+              <span className="w-5 text-center text-base font-bold text-zinc-400 [grid-area:rank] sm:w-6 sm:text-lg">
                 {item.rank}
               </span>
-              <Link href={`/groups/${groupId}/games/${item.game.id}`} className="shrink-0">
+              <Link href={`/groups/${groupId}/games/${item.game.id}`} className="[grid-area:cover]">
                 <GameCover
                   src={item.game.coverUrl}
                   name={item.game.name}
-                  className="h-12 w-[103px] rounded text-base"
+                  className="h-10 w-[86px] rounded text-sm sm:h-12 sm:w-[103px] sm:text-base"
                 />
               </Link>
-              <div className="min-w-0 flex-1 space-y-1">
-                <div className="flex flex-wrap items-baseline gap-x-2">
-                  <span className="font-medium">{item.game.name}</span>
-                  <ReviewSummary game={item.game} />
-                </div>
+              <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 [grid-area:info] sm:self-end">
+                <span className="font-medium leading-snug break-words">{item.game.name}</span>
+                <ReviewSummary game={item.game} />
+              </div>
+              <div className="min-w-0 space-y-1 [grid-area:stats] sm:self-start">
                 <div className="flex items-center gap-2">
                   <span className="h-2 flex-1 overflow-hidden rounded bg-zinc-100 dark:bg-zinc-800">
                     <span
@@ -222,22 +224,11 @@ export function VoteBoard({
                 )}
               </div>
               {open && (
-                <div className="flex shrink-0 flex-col items-end gap-1">
-                  <Button
-                    type="button"
-                    variant={mine ? "primary" : "secondary"}
-                    className="px-3 py-1.5"
-                    aria-pressed={mine}
-                    aria-label={`${mine ? "取消投票" : "投票"} ${item.game.name}`}
-                    disabled={pending || (!mine && left <= 0)}
-                    onClick={() => run(() => toggleVoteAction(groupId, roundId, item.game.id))}
-                  >
-                    {mine ? "✓ 已投" : "投一票"}
-                  </Button>
+                <div className="flex items-center gap-3 self-center justify-self-end [grid-area:action] sm:flex-col sm:items-end sm:gap-1">
                   {item.canRemove && (
                     <button
                       type="button"
-                      className="text-xs text-zinc-400 hover:text-red-600"
+                      className="order-first text-xs text-zinc-400 hover:text-red-600 sm:order-last"
                       disabled={pending}
                       onClick={() =>
                         run(() => removeCandidateAction(groupId, roundId, item.game.id))
@@ -246,6 +237,17 @@ export function VoteBoard({
                       移除
                     </button>
                   )}
+                  <Button
+                    type="button"
+                    variant={mine ? "primary" : "secondary"}
+                    className="min-h-9 px-3 py-1.5"
+                    aria-pressed={mine}
+                    aria-label={`${mine ? "取消投票" : "投票"} ${item.game.name}`}
+                    disabled={pending || (!mine && left <= 0)}
+                    onClick={() => run(() => toggleVoteAction(groupId, roundId, item.game.id))}
+                  >
+                    {mine ? "✓ 已投" : "投一票"}
+                  </Button>
                 </div>
               )}
             </li>

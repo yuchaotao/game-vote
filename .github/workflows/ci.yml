@@ -74,6 +74,14 @@ jobs:
             playwright-report/
             test-results/
           retention-days: 14
+      # Layout screenshots from e2e/mobile.spec.ts, for looking at the real rendering.
+      - uses: actions/upload-artifact@v4
+        if: always() && matrix.base_path == ''
+        with:
+          name: screens
+          path: test-results/screens/
+          if-no-files-found: ignore
+          retention-days: 7
 
   image:
     name: Production image
