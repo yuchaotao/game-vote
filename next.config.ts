@@ -9,6 +9,8 @@ if (basePath && !/^\/[\w-]+(\/[\w-]+)*$/.test(basePath)) {
 }
 
 const nextConfig: NextConfig = {
+  // The Docker image runs the self-contained server (.next/standalone).
+  output: process.env.NEXT_OUTPUT === "standalone" ? "standalone" : undefined,
   basePath: basePath || undefined,
   // Exposed to code that builds raw hrefs (plain <a> tags don't get basePath).
   env: { NEXT_PUBLIC_BASE_PATH: basePath },

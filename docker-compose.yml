@@ -51,7 +51,6 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-gamevote}:${POSTGRES_PASSWORD:-gamevote}@postgres:5432/${POSTGRES_DB:-gamevote}
       REDIS_URL: redis://redis:6379
-    command: ["sh", "-c", "npx prisma migrate deploy && npm run start"]
     ports:
       - "3000:3000"
     depends_on:
@@ -66,7 +65,7 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-gamevote}:${POSTGRES_PASSWORD:-gamevote}@postgres:5432/${POSTGRES_DB:-gamevote}
       REDIS_URL: redis://redis:6379
-    command: ["npm", "run", "worker"]
+    command: ["node", "dist/worker/index.js"]
     depends_on:
       web: { condition: service_started }
 
