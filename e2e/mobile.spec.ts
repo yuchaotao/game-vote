@@ -50,18 +50,19 @@ test("voting on a phone: cards stack, nothing overlaps or scrolls sideways", asy
   await page.getByRole("button", { name: "投票 博德之门3" }).click();
   await expect(page.getByRole("button", { name: "取消投票 博德之门3" })).toBeVisible();
 
+  await shot(page, "round-phone");
   await noSideways(page);
   for (const card of await page
     .getByRole("list", { name: "候选游戏" })
     .getByRole("listitem")
     .all()) {
-    const name = (await card.locator(".font-medium").first().boundingBox())!;
+    // The space the name gets (its row), not the text itself: short names are narrow.
+    const name = (await card.locator(".font-medium").first().locator("..").boundingBox())!;
     const button = (await card.getByRole("button", { name: /投票/ }).boundingBox())!;
     // The button sits below the name on a phone, not squeezed beside it.
     expect(button.y, "button below the name").toBeGreaterThanOrEqual(name.y + name.height - 1);
     expect(name.width, "name has room").toBeGreaterThan(150);
   }
-  await shot(page, "round-phone");
 
   await page.goto(`${new URL(roundUrl).pathname.replace(/\/[^/]+$/, "")}`);
   await noSideways(page);
