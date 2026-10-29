@@ -181,7 +181,7 @@ export function VoteBoard({
               aria-label={`第 ${item.rank} 名 ${item.game.name}`}
               // Phones: rank, cover and name on top; votes and the button get the
               // full width below. Wider: one row with the button on the right.
-              className={`grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 rounded-xl border p-3 [grid-template-areas:'rank_cover_info_info'_'stats_stats_stats_action'] sm:[grid-template-areas:'rank_cover_info_action'_'rank_cover_stats_action'] ${
+              className={`grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-2 rounded-xl border p-3 sm:gap-x-3 [grid-template-areas:'rank_cover_info_info'_'stats_stats_stats_action'] sm:[grid-template-areas:'rank_cover_info_action'_'rank_cover_stats_action'] ${
                 mine
                   ? "border-indigo-400 bg-indigo-50/50 dark:border-indigo-700 dark:bg-indigo-950/30"
                   : "border-zinc-200 dark:border-zinc-800"
