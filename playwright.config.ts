@@ -25,6 +25,8 @@ process.env.IGDB_CLIENT_SECRET = "e2e-secret";
 // Discord bot DMs go to the mock as well.
 process.env.DISCORD_API_URL = `http://localhost:${steamMockPort}/discord/api`;
 process.env.DISCORD_BOT_TOKEN = "e2e-bot-token";
+// Public half of the test-only signing key in e2e/discord.spec.ts.
+process.env.DISCORD_PUBLIC_KEY = "9a626230f0fed144f5e7fef784c39fb18b49b99be324fdea861dcb21bddb912e";
 
 export default defineConfig({
   testDir: "e2e",

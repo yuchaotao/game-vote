@@ -393,16 +393,19 @@ model VoteRound {
   /// The round this one continued from ("end and start next").
   previousId   String?
 
-  group      Group           @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  startedBy  User?           @relation("VoteRoundStarter", fields: [startedById], references: [id], onDelete: SetNull)
-  endedBy    User?           @relation("VoteRoundEnder", fields: [endedById], references: [id], onDelete: SetNull)
-  winner     Game?           @relation("VoteRoundWinner", fields: [winnerGameId], references: [id], onDelete: SetNull)
-  previous   VoteRound?      @relation("VoteRoundChain", fields: [previousId], references: [id], onDelete: SetNull)
-  next       VoteRound[]     @relation("VoteRoundChain")
-  candidates VoteCandidate[]
-  ballots    VoteBallot[]
-  events     VoteEvent[]
-  prompts    VotePrompt[]
+  group            Group           @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  startedBy        User?           @relation("VoteRoundStarter", fields: [startedById], references: [id], onDelete: SetNull)
+  endedBy          User?           @relation("VoteRoundEnder", fields: [endedById], references: [id], onDelete: SetNull)
+  winner           Game?           @relation("VoteRoundWinner", fields: [winnerGameId], references: [id], onDelete: SetNull)
+  previous         VoteRound?      @relation("VoteRoundChain", fields: [previousId], references: [id], onDelete: SetNull)
+  next             VoteRound[]     @relation("VoteRoundChain")
+  candidates       VoteCandidate[]
+  ballots          VoteBallot[]
+  events           VoteEvent[]
+  prompts          VotePrompt[]
+  /// The live Discord message for this round (#47), when the group has a channel.
+  discordChannelId String?
+  discordMessageId String?
 
   @@unique([groupId, number])
   @@index([groupId, status])
@@ -497,9 +500,13 @@ model VotePrompt {
   resolvedAt   DateTime?
   resolvedById String?
 
-  round      VoteRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
-  game       Game      @relation(fields: [gameId], references: [id], onDelete: Cascade)
-  resolvedBy User?     @relation(fields: [resolvedById], references: [id], onDelete: SetNull)
+  round            VoteRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  game             Game      @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  resolvedBy       User?     @relation(fields: [resolvedById], references: [id], onDelete: SetNull)
+  /// The prompt's Discord message (#47); closed = buttons removed after it was answered.
+  discordChannelId String?
+  discordMessageId String?
+  discordClosedAt  DateTime?
 
   @@index([roundId, status])
 }
@@ -565,8 +572,10 @@ model Notification {
   /// Channel posts: Discord user ids to @mention.
   mentions      String[]            @default([])
 
-  user  User?  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  group Group? @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group Group?  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  /// What a group channel post is about (a vote round or prompt), for its buttons.
+  refId String?
 
   @@index([status, nextAttemptAt])
   @@index([userId, createdAt])

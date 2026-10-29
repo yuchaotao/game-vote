@@ -88,6 +88,7 @@ const players = {};
 
 // Discord messages sent by the bot, per channel id; read through GET /mock/discord/messages.
 const discordMessages = {};
+let discordMessageCount = 0;
 
 const reviews = {
   1086940: {
@@ -134,11 +135,19 @@ createServer((req, res) => {
           return json(res, { message: "Cannot send messages to this user", code: 50007 }, 403);
         return json(res, { id: `dm-${data.recipient_id}` });
       }
+      const edit = /^\/channels\/([\w-]+)\/messages\/([\w-]+)$/.exec(api);
+      if (edit && req.method === "PATCH") {
+        const message = discordMessages[edit[1]]?.find((m) => m.id === edit[2]);
+        if (!message) return json(res, { message: "Unknown Message", code: 10008 }, 404);
+        Object.assign(message, data);
+        return json(res, message);
+      }
       const post = /^\/channels\/([\w-]+)\/messages$/.exec(api);
       if (!post) return json(res, { message: "Unknown", code: 0 }, 404);
       if (post[1] === "102") return json(res, { message: "Missing Permissions", code: 50013 }, 403);
-      (discordMessages[post[1]] ??= []).push(data);
-      json(res, { id: `msg-${Date.now()}` });
+      const message = { id: `msg-${++discordMessageCount}`, ...data };
+      (discordMessages[post[1]] ??= []).push(message);
+      json(res, message);
     });
     return;
   }

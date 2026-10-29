@@ -53,6 +53,7 @@ POSTGRES_PASSWORD=<openssl rand -hex 24>
 2. OAuth2 → URL Generator：勾选 `bot`，权限不用勾，用生成的链接把机器人加进大家共用的服务器
 3. Discord 只允许机器人私信同一服务器的成员；成员在该服务器的隐私设置里需允许「服务器成员私信」
 4. 发送记录和失败原因在数据库 `Notification` 表里，用户也能在 设置 → 通知 → 最近的通知 看到
+5. 频道里的投票按钮（#47）：General Information → Interactions Endpoint URL 填 `https://www.yuchaotao.com/game-vote/api/discord/interactions`（部署后再填，保存时 Discord 会立即校验）
 
 ## 更新
 

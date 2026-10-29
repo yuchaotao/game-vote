@@ -3,7 +3,8 @@ import { env } from "@/lib/env";
 import { redis } from "@/lib/redis";
 import { isJobName, JOBS } from "./jobs";
 
-// Runs one background job now and prints its result: `npm run job poll-presence`.
+// Runs one background job now and prints its result: `npm run job poll-presence`
+// (on-demand jobs take JSON data: `npm run job sync-discord-round '{"roundId":"…"}'`).
 
 async function main() {
   const name = process.argv[2] ?? "";
@@ -12,7 +13,9 @@ async function main() {
     process.exit(2);
   }
   env();
-  console.log(JSON.stringify(await JOBS[name].run()));
+  console.log(
+    JSON.stringify(await JOBS[name].run(process.argv[3] ? JSON.parse(process.argv[3]) : undefined)),
+  );
 }
 
 main()
