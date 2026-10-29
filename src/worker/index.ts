@@ -16,11 +16,11 @@ async function main() {
         name,
         async (job) => {
           if (!isJobName(job.name)) throw new Error(`unknown job ${job.name}`);
-          const result = JSON.stringify(await JOBS[job.name].run());
+          const result = JSON.stringify(await JOBS[job.name].run(job.data));
           // Log only runs that did something, not every quiet 2-minute poll.
           if (
             job.name !== "heartbeat" &&
-            /"(started|closed|expired|refreshed|raised|sent|failed)":[1-9]/.test(result)
+            /"(started|closed|expired|refreshed|raised|sent|failed|edited)":[1-9]/.test(result)
           ) {
             console.log(`[worker] ${job.name} ${result}`);
           }
@@ -29,6 +29,7 @@ async function main() {
       ),
   );
   for (const [name, job] of Object.entries(JOBS)) {
+    if (!("every" in job)) continue;
     await queue(job.queue).upsertJobScheduler(name, { every: job.every }, { name });
   }
   for (const w of workers) {

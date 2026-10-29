@@ -1,3 +1,4 @@
+import { createPublicKey, verify } from "node:crypto";
 import { PermanentDeliveryError } from "./rules";
 
 // The Discord bot over the REST API (no gateway connection needed): direct
@@ -17,7 +18,7 @@ const PERMANENT: Record<number, string> = {
 
 async function discord<T>(
   opts: BotOptions,
-  method: "GET" | "POST",
+  method: "GET" | "POST" | "PATCH",
   path: string,
   body: object | undefined,
   fetchImpl: typeof fetch,
@@ -61,8 +62,57 @@ export async function postToChannel(
   channelId: string,
   payload: object,
   fetchImpl: typeof fetch = fetch,
+): Promise<{ id: string }> {
+  return discord(opts, "POST", `/channels/${channelId}/messages`, payload, fetchImpl);
+}
+
+export async function editMessage(
+  opts: BotOptions,
+  channelId: string,
+  messageId: string,
+  payload: object,
+  fetchImpl: typeof fetch = fetch,
 ): Promise<void> {
-  await discord(opts, "POST", `/channels/${channelId}/messages`, payload, fetchImpl);
+  await discord(opts, "PATCH", `/channels/${channelId}/messages/${messageId}`, payload, fetchImpl);
+}
+
+/** The application's Ed25519 public key (hex), for checking interaction signatures. */
+export async function applicationPublicKey(
+  opts: BotOptions,
+  fetchImpl: typeof fetch = fetch,
+): Promise<string> {
+  const app = await discord<{ verify_key: string }>(
+    opts,
+    "GET",
+    "/applications/@me",
+    undefined,
+    fetchImpl,
+  );
+  return app.verify_key;
+}
+
+// DER prefix of an Ed25519 SubjectPublicKeyInfo; the raw 32-byte key follows.
+const ED25519_SPKI = Buffer.from("302a300506032b6570032100", "hex");
+
+/** Checks Discord's X-Signature-Ed25519 over timestamp + body. */
+export function verifyDiscordSignature(
+  publicKeyHex: string,
+  signatureHex: string,
+  timestamp: string,
+  body: string,
+): boolean {
+  try {
+    const key = createPublicKey({
+      key: Buffer.concat([ED25519_SPKI, Buffer.from(publicKeyHex, "hex")]),
+      format: "der",
+      type: "spki",
+    });
+    const signature = Buffer.from(signatureHex, "hex");
+    if (signature.length !== 64) return false;
+    return verify(null, Buffer.from(timestamp + body), key, signature);
+  } catch {
+    return false;
+  }
 }
 
 export type TextChannel = { id: string; name: string; server: string };

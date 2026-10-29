@@ -1,6 +1,7 @@
 import { refreshStaleIgdbGames, refreshStaleSteamGames } from "@/lib/games/service";
 import { sendDueNotifications } from "@/lib/notify/service";
 import { pollSteam, tickManualSessions } from "@/lib/play/service";
+import { syncRoundMessages } from "@/lib/votes/discord";
 import { checkPrompts } from "@/lib/votes/prompts";
 import { closeDueRounds } from "@/lib/votes/service";
 import { QUEUE, WORKER_HEARTBEAT_KEY } from "@/lib/queues";
@@ -8,9 +9,9 @@ import { redis } from "@/lib/redis";
 
 type Job = {
   queue: (typeof QUEUE)[keyof typeof QUEUE];
-  /** Repeat interval in ms. */
-  every: number;
-  run: () => Promise<unknown>;
+  /** Repeat interval in ms; on-demand jobs (queued by the app) have none. */
+  every?: number;
+  run: (data?: unknown) => Promise<unknown>;
 };
 
 // Every recurring background job. The worker schedules them; `npm run job <name>`
@@ -42,20 +43,25 @@ export const JOBS = {
   "close-due-rounds": {
     queue: QUEUE.votes,
     every: 60_000,
-    run: closeDueRounds,
+    run: () => closeDueRounds(),
   },
   // "You're playing a front-runner together: end the vote?" (after presence polls).
   "check-prompts": {
     queue: QUEUE.votes,
     every: 2 * 60_000,
-    run: checkPrompts,
+    run: () => checkPrompts(),
   },
   // Email / Discord notifications. Events also trigger it right away; this
   // sweep picks up retries.
   "send-notifications": {
     queue: QUEUE.notify,
     every: 30_000,
-    run: sendDueNotifications,
+    run: () => sendDueNotifications(),
+  },
+  // Keeps a round's Discord messages current; queued (debounced) on every change.
+  "sync-discord-round": {
+    queue: QUEUE.notify,
+    run: (data) => syncRoundMessages((data as { roundId: string }).roundId),
   },
 } satisfies Record<string, Job>;
 

@@ -25,6 +25,8 @@ export const envSchema = z.object({
   DISCORD_CLIENT_ID: optional,
   DISCORD_CLIENT_SECRET: optional,
   DISCORD_BOT_TOKEN: optional,
+  /** Application public key for interactions; fetched from Discord when unset. */
+  DISCORD_PUBLIC_KEY: optional,
   /** Discord REST API; tests point this at e2e/steam-mock.mjs. */
   DISCORD_API_URL: z.string().url().default("https://discord.com/api/v10"),
   SMTP_HOST: optional,

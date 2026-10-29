@@ -74,6 +74,7 @@ export async function checkPrompts(now = new Date()) {
         `检测到 ${candidate.players}/${memberCount} 名成员正在一起玩《${prompt.game.name}》（已 ${minutes}），` +
         `它在第 ${round.number} 轮投票中排第 ${candidate.rank}。要结束这轮投票吗？`,
       path: `/groups/${round.groupId}`,
+      refId: prompt.id,
     }));
   }
   return { checked: rounds.length, raised };

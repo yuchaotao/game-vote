@@ -8,6 +8,7 @@ import { publicUser } from "@/lib/friends/service";
 import { getLibraryEntry } from "@/lib/games/service";
 import { libraryHotness } from "@/lib/play/service";
 import { redis } from "@/lib/redis";
+import { scheduleDiscordSync } from "./discord-sync";
 import {
   canCast,
   deadlineError,
@@ -25,6 +26,7 @@ const votesChannel = (groupId: string) => `group:${groupId}:votes`;
 /** Tells open pages of this group that a round changed. */
 export async function notifyChanged(groupId: string, roundId: string) {
   await redis().publish(votesChannel(groupId), JSON.stringify({ roundId }));
+  await scheduleDiscordSync(roundId);
 }
 
 /** Live "a round changed" signals for a group (own connection per subscriber). */
@@ -113,6 +115,7 @@ export async function startRound(
     title: `「${group}」发起了${roundLabel(round)}`,
     body: `${starter} 在「${group}」发起了${roundLabel(round)}，每人最多 ${round.maxVotes} 票，快来投票吧。`,
     path: `/groups/${groupId}/votes/${round.id}`,
+    refId: round.id,
   }));
   return round;
 }
@@ -122,7 +125,7 @@ export async function notifyMembers(
   groupId: string,
   exceptUserId: string | null,
   event: "NEW_ROUND" | "VOTE_PROMPT",
-  content: (groupName: string) => { title: string; body: string; path: string },
+  content: (groupName: string) => { title: string; body: string; path: string; refId?: string },
 ) {
   await notifyGroup(event, groupId, exceptUserId, content);
 }

@@ -34,6 +34,8 @@ export type NotificationContent = {
   body: string;
   /** App path the notification links to, e.g. /friends. */
   path: string;
+  /** What a group channel post is about (vote round / prompt), for its buttons. */
+  refId?: string;
 };
 
 /** Which channels can reach a user right now. */
@@ -139,7 +141,13 @@ export async function notifyGroup(
       ...recipients
         .filter((r) => r.channels.includes("EMAIL"))
         .map((r) => ({ ...base, userId: r.user.id, channel: NotificationChannel.EMAIL })),
-      { ...base, groupId, channel: NotificationChannel.DISCORD_CHANNEL, mentions },
+      {
+        ...base,
+        groupId,
+        channel: NotificationChannel.DISCORD_CHANNEL,
+        mentions,
+        refId: c.refId ?? null,
+      },
     ]);
   } catch (err) {
     console.error(`[notify] ${event} for group ${groupId} failed to queue:`, err);
@@ -155,11 +163,16 @@ async function deliver(n: Notification) {
       : null;
     if (!group?.discordChannelId) throw new PermanentDeliveryError("群已取消 Discord 频道通知");
     if (!e.DISCORD_BOT_TOKEN) throw new PermanentDeliveryError("站点未配置 Discord 机器人");
-    await postToChannel(
+    // Votes and prompts get their live, clickable message (#47). Loaded lazily:
+    // the votes module itself sends notifications.
+    const votes = await import("@/lib/votes/discord");
+    const payload = (await votes.channelPost(n)) ?? channelPayload(n, n.mentions);
+    const posted = await postToChannel(
       { apiUrl: e.DISCORD_API_URL, token: e.DISCORD_BOT_TOKEN },
       group.discordChannelId,
-      channelPayload(n, n.mentions),
+      payload,
     );
+    await votes.rememberPost(n, group.discordChannelId, posted.id);
     return;
   }
   const userId = n.userId;
