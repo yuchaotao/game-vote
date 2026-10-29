@@ -59,6 +59,9 @@ export type RoundView = {
   ranked: { gameId: string; name: string; votes: number; rank: number }[];
   voters: number;
   winner: string | null;
+  /** Anonymous and not revealed yet: no counts or order (#51). */
+  hidden?: boolean;
+  peekers?: string[];
 };
 
 export function renderRound(r: RoundView, mentionIds: string[] = []) {
@@ -67,7 +70,10 @@ export function renderRound(r: RoundView, mentionIds: string[] = []) {
     .slice(0, 10)
     .map((s) => `**${s.rank}.** ${s.name}　${bar(s.votes, max)} ${s.votes} 票`);
   const parts: string[] = [];
-  if (r.ranked.length === 0) {
+  if (r.hidden && r.candidates.length > 0) {
+    parts.push(r.candidates.map((c) => `• ${c.name}`).join("\n"));
+    parts.push("🙈 匿名投票：揭榜前不显示票数和排名");
+  } else if (r.ranked.length === 0) {
     parts.push(
       r.open ? "还没有候选游戏。在网站上添加候选后，这里会出现投票按钮。" : "这一轮没有候选游戏。",
     );
@@ -76,19 +82,23 @@ export function renderRound(r: RoundView, mentionIds: string[] = []) {
     if (r.ranked.length > 10) parts.push(`…还有 ${r.ranked.length - 10} 个候选`);
   }
   if (r.open) {
-    if (r.deadline) parts.push(`⏰ 截止 <t:${Math.floor(r.deadline.getTime() / 1000)}:R>`);
+    if (r.deadline) {
+      const t = Math.floor(r.deadline.getTime() / 1000);
+      parts.push(r.hidden ? `⏰ 揭榜 <t:${t}:F>（<t:${t}:R>）` : `⏰ 截止 <t:${t}:R>`);
+    }
     if (r.candidates.length > MAX_VOTE_BUTTONS) {
       parts.push(`候选超过 ${MAX_VOTE_BUTTONS} 个，其余的请在网站上投票。`);
     }
   } else {
     parts.push(r.winner ? `🏆 胜出：**${r.winner}**` : "没有人投票。");
   }
+  if (r.peekers && r.peekers.length > 0) parts.push(`👀 偷看过：${r.peekers.join("、")}`);
 
   const buttons: Button[] = r.open
     ? r.candidates.slice(0, MAX_VOTE_BUTTONS).map((c) => ({
         type: COMPONENT_BUTTON,
         style: BUTTON.SECONDARY,
-        label: clip(`${c.name} · ${c.votes}`, 80),
+        label: clip(r.hidden ? c.name : `${c.name} · ${c.votes}`, 80),
         custom_id: voteButtonId(r.id, c.gameId),
       }))
     : [];

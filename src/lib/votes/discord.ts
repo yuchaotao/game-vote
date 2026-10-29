@@ -13,7 +13,8 @@ import {
   type RoundView,
 } from "./discord-render";
 import { resolvePrompt, type PromptChoice } from "./prompts";
-import { getRound, toggleVote, VoteError } from "./service";
+import { resultsHidden } from "./rules";
+import { getRound, peekers, toggleVote, VoteError } from "./service";
 
 // Voting from Discord (#47): the live round message, prompt messages, and the
 // buttons on them. Rules are the website's: these call the same services.
@@ -53,6 +54,9 @@ async function roundView(roundId: string): Promise<RoundView | null> {
     })),
     voters: new Set(round.ballots.map((b) => b.userId)).size,
     winner: round.winner?.name ?? null,
+    // The channel sees what a member who hasn't peeked sees.
+    hidden: resultsHidden(round, false),
+    peekers: round.anonymous ? (await peekers(roundId)).map((p) => p.user.displayName) : [],
   };
 }
 

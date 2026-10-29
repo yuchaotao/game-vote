@@ -23,7 +23,8 @@ export function PromptBanner({
   roundLabel: string;
   players: number;
   memberCount: number;
-  rank: number;
+  /** Null in an anonymous round (the rank is secret). */
+  rank: number | null;
 }) {
   const [state, setState] = useState<FormState>();
   const [pending, start] = useTransition();
@@ -43,8 +44,9 @@ export function PromptBanner({
           className="h-12 w-[103px] shrink-0 rounded text-base"
         />
         <p className="text-sm">
-          🎮 {players}/{memberCount} 名成员正在一起玩<strong>《{game.name}》</strong>，它在
-          {roundLabel}中排第 {rank}。 要结束这轮投票吗？
+          🎮 {players}/{memberCount} 名成员正在一起玩<strong>《{game.name}》</strong>，
+          {rank === null ? `它是${roundLabel}的候选。` : `它在${roundLabel}中排第 ${rank}。`}
+          要结束这轮投票吗？
         </p>
       </div>
       {state?.error && <Alert kind="error">{state.error}</Alert>}

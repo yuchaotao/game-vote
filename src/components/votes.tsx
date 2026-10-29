@@ -2,10 +2,18 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import {
+  useActionState,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+  type CSSProperties,
+} from "react";
 import type { FormState } from "@/lib/auth/actions";
 import { withBase } from "@/lib/base-path";
-import { replayFrames, type ReplayEvent } from "@/lib/votes/rules";
+import { nextReveal, replayFrames, type ReplayEvent } from "@/lib/votes/rules";
 import {
   addCandidateAction,
   endRoundAction,
@@ -92,9 +100,21 @@ export function Deadline({ at }: { at: Date }) {
   );
 }
 
+/** "YYYY-MM-DDTHH:mm" in the viewer's local time, for a datetime-local input. */
+function toLocalInput(d: Date) {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 export function StartRoundForm({ groupId }: { groupId: string }) {
   const [state, action, pending] = useActionState(startRoundAction.bind(null, groupId), undefined);
+  const [anonymous, setAnonymous] = useState(true);
   const [local, setLocal] = useState("");
+  // Anonymous rounds reveal (and end) on Friday 12:00 Beijing time by default.
+  // Filled in after mount: it depends on the viewer's clock and time zone.
+  useEffect(() => {
+    if (anonymous) setLocal((v) => v || toLocalInput(nextReveal()));
+  }, [anonymous]);
   // datetime-local is the viewer's local time; send an absolute ISO time.
   const iso = local ? new Date(local).toISOString() : "";
   return (
@@ -107,6 +127,24 @@ export function StartRoundForm({ groupId }: { groupId: string }) {
         placeholder="例如：周五晚上玩什么"
         hint="可选"
       />
+      <label className="flex items-start gap-2 text-sm">
+        <input
+          type="checkbox"
+          name="anonymous"
+          checked={anonymous}
+          onChange={(e) => {
+            setAnonymous(e.target.checked);
+            if (!e.target.checked) setLocal("");
+          }}
+          className="mt-0.5 size-4 accent-indigo-600"
+        />
+        <span>
+          <span className="font-medium">匿名投票</span>
+          <span className="block text-xs text-zinc-500">
+            揭榜前不显示票数和排名；想提前看可以「偷看」，但大家都会知道。
+          </span>
+        </span>
+      </label>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field
           label="每人票数"
@@ -119,11 +157,12 @@ export function StartRoundForm({ groupId }: { groupId: string }) {
         />
         <div>
           <Field
-            label="截止时间"
+            label={anonymous ? "揭榜时间" : "截止时间"}
             type="datetime-local"
             value={local}
+            required={anonymous}
             onChange={(e) => setLocal(e.target.value)}
-            hint="可选，到时自动结束"
+            hint={anonymous ? "到点揭榜并结束投票" : "可选，到时自动结束"}
           />
           <input type="hidden" name="deadline" value={iso} />
         </div>
@@ -140,6 +179,8 @@ export function VoteBoard({
   myVotes,
   maxVotes,
   open,
+  hidden = false,
+  celebrate = false,
 }: {
   groupId: string;
   roundId: string;
@@ -147,7 +188,13 @@ export function VoteBoard({
   myVotes: string[];
   maxVotes: number;
   open: boolean;
+  /** Anonymous and not revealed: no counts, ranks or voters. */
+  hidden?: boolean;
+  /** First look at a reveal: places appear last to first, the winner last. */
+  celebrate?: boolean;
 }) {
+  // Kept for the life of the page, so a live refresh doesn't cut the effect short.
+  const [celebrating] = useState(celebrate);
   const [state, setState] = useState<FormState>();
   const [pending, start] = useTransition();
   const run = (fn: () => Promise<FormState>) =>
@@ -173,22 +220,30 @@ export function VoteBoard({
       )}
       <Status state={state} />
       <ol aria-label="候选游戏" className="space-y-2">
-        {items.map((item) => {
+        {items.map((item, index) => {
           const mine = myVotes.includes(item.game.id);
           return (
             <li
               key={item.game.id}
-              aria-label={`第 ${item.rank} 名 ${item.game.name}`}
+              aria-label={hidden ? item.game.name : `第 ${item.rank} 名 ${item.game.name}`}
+              data-winner={celebrating && index === 0 ? "" : undefined}
+              style={
+                celebrating
+                  ? ({
+                      "--d": `${(items.length - 1 - index) * 0.45 + (index === 0 ? 0.3 : 0)}s`,
+                    } as CSSProperties)
+                  : undefined
+              }
               // Phones: rank, cover and name on top; votes and the button get the
               // full width below. Wider: one row with the button on the right.
-              className={`grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-2 rounded-xl border p-3 sm:gap-x-3 [grid-template-areas:'rank_cover_info_info'_'stats_stats_stats_action'] sm:[grid-template-areas:'rank_cover_info_action'_'rank_cover_stats_action'] ${
+              className={`grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-2 rounded-xl border p-3 sm:gap-x-3 ${celebrating ? (index === 0 ? "reveal-winner" : "reveal-in") : ""} [grid-template-areas:'rank_cover_info_info'_'stats_stats_stats_action'] sm:[grid-template-areas:'rank_cover_info_action'_'rank_cover_stats_action'] ${
                 mine
                   ? "border-indigo-400 bg-indigo-50/50 dark:border-indigo-700 dark:bg-indigo-950/30"
                   : "border-zinc-200 dark:border-zinc-800"
               }`}
             >
               <span className="w-5 text-center text-base font-bold text-zinc-400 [grid-area:rank] sm:w-6 sm:text-lg">
-                {item.rank}
+                {hidden ? "·" : item.rank}
               </span>
               <Link href={`/groups/${groupId}/games/${item.game.id}`} className="[grid-area:cover]">
                 <GameCover
@@ -201,28 +256,30 @@ export function VoteBoard({
                 <span className="font-medium leading-snug break-words">{item.game.name}</span>
                 <ReviewSummary game={item.game} />
               </div>
-              <div className="min-w-0 space-y-1 [grid-area:stats] sm:self-start">
-                <div className="flex items-center gap-2">
-                  <span className="h-2 flex-1 overflow-hidden rounded bg-zinc-100 dark:bg-zinc-800">
-                    <span
-                      className="block h-full rounded bg-indigo-500 transition-all duration-500"
-                      style={{ width: `${(item.votes / top) * 100}%` }}
-                    />
-                  </span>
-                  <span className="w-12 shrink-0 text-right text-sm font-semibold">
-                    {item.votes} 票
-                  </span>
-                </div>
-                {item.voters.length > 0 && (
-                  <div className="flex flex-wrap gap-1" aria-label="投票的人">
-                    {item.voters.map((v) => (
-                      <span key={v.id} title={v.displayName}>
-                        <Avatar src={v.avatarUrl} name={v.displayName} size={20} />
-                      </span>
-                    ))}
+              {!hidden && (
+                <div className="min-w-0 space-y-1 [grid-area:stats] sm:self-start">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 flex-1 overflow-hidden rounded bg-zinc-100 dark:bg-zinc-800">
+                      <span
+                        className="block h-full rounded bg-indigo-500 transition-all duration-500"
+                        style={{ width: `${(item.votes / top) * 100}%` }}
+                      />
+                    </span>
+                    <span className="w-12 shrink-0 text-right text-sm font-semibold">
+                      {item.votes} 票
+                    </span>
                   </div>
-                )}
-              </div>
+                  {item.voters.length > 0 && (
+                    <div className="flex flex-wrap gap-1" aria-label="投票的人">
+                      {item.voters.map((v) => (
+                        <span key={v.id} title={v.displayName}>
+                          <Avatar src={v.avatarUrl} name={v.displayName} size={20} />
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
               {open && (
                 <div className="flex items-center gap-3 self-center justify-self-end [grid-area:action] sm:flex-col sm:items-end sm:gap-1">
                   {item.canRemove && (

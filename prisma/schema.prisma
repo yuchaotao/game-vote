@@ -48,6 +48,8 @@ model User {
   voteBallots        VoteBallot[]
   voteEvents         VoteEvent[]
   votePrompts        VotePrompt[]
+  votePeeks          VotePeek[]
+  voteRevealsSeen    VoteRevealSeen[]
 
   notificationPreferences NotificationPreference[]
   notifications           Notification[]
@@ -393,12 +395,12 @@ model VoteRound {
   /// The round this one continued from ("end and start next").
   previousId   String?
 
-  group            Group           @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  startedBy        User?           @relation("VoteRoundStarter", fields: [startedById], references: [id], onDelete: SetNull)
-  endedBy          User?           @relation("VoteRoundEnder", fields: [endedById], references: [id], onDelete: SetNull)
-  winner           Game?           @relation("VoteRoundWinner", fields: [winnerGameId], references: [id], onDelete: SetNull)
-  previous         VoteRound?      @relation("VoteRoundChain", fields: [previousId], references: [id], onDelete: SetNull)
-  next             VoteRound[]     @relation("VoteRoundChain")
+  group            Group            @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  startedBy        User?            @relation("VoteRoundStarter", fields: [startedById], references: [id], onDelete: SetNull)
+  endedBy          User?            @relation("VoteRoundEnder", fields: [endedById], references: [id], onDelete: SetNull)
+  winner           Game?            @relation("VoteRoundWinner", fields: [winnerGameId], references: [id], onDelete: SetNull)
+  previous         VoteRound?       @relation("VoteRoundChain", fields: [previousId], references: [id], onDelete: SetNull)
+  next             VoteRound[]      @relation("VoteRoundChain")
   candidates       VoteCandidate[]
   ballots          VoteBallot[]
   events           VoteEvent[]
@@ -406,6 +408,11 @@ model VoteRound {
   /// The live Discord message for this round (#47), when the group has a channel.
   discordChannelId String?
   discordMessageId String?
+  /// Anonymous (#51): counts, ranks and voters stay hidden until the deadline
+  /// (the reveal), except to members who peeked, which everyone can see.
+  anonymous        Boolean          @default(false)
+  peeks            VotePeek[]
+  revealsSeen      VoteRevealSeen[]
 
   @@unique([groupId, number])
   @@index([groupId, status])
@@ -580,4 +587,28 @@ model Notification {
   @@index([status, nextAttemptAt])
   @@index([userId, createdAt])
   @@index([groupId, createdAt])
+}
+
+/// A member looked at an anonymous round's results before the reveal.
+model VotePeek {
+  roundId String
+  userId  String
+  at      DateTime @default(now())
+
+  round VoteRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  user  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([roundId, userId])
+}
+
+/// A member has seen an anonymous round's reveal (its effect plays once).
+model VoteRevealSeen {
+  roundId String
+  userId  String
+  seenAt  DateTime @default(now())
+
+  round VoteRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  user  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([roundId, userId])
 }

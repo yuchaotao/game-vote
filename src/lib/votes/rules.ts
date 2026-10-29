@@ -5,32 +5,40 @@ import { z } from "zod";
 export const DEFAULT_MAX_VOTES = 3;
 export const MAX_TITLE = 60;
 
-export const roundSettingsSchema = z.object({
-  title: z.string().trim().max(MAX_TITLE, `标题最多 ${MAX_TITLE} 字`),
-  // An empty field means the default.
-  maxVotes: z.preprocess(
-    (v) => (v === "" || v === null ? undefined : v),
-    z.coerce
-      .number()
-      .int()
-      .min(1, "每人至少 1 票")
-      .max(10, "每人最多 10 票")
-      .default(DEFAULT_MAX_VOTES),
-  ),
-  /** ISO timestamp from the browser (converted from its local time), or empty. */
-  deadline: z
-    .string()
-    .trim()
-    .transform((v, ctx) => {
-      if (!v) return null;
-      const d = new Date(v);
-      if (Number.isNaN(d.getTime())) {
-        ctx.addIssue({ code: "custom", message: "截止时间无效" });
-        return z.NEVER;
-      }
-      return d;
-    }),
-});
+export const roundSettingsSchema = z
+  .object({
+    title: z.string().trim().max(MAX_TITLE, `标题最多 ${MAX_TITLE} 字`),
+    // An empty field means the default.
+    maxVotes: z.preprocess(
+      (v) => (v === "" || v === null ? undefined : v),
+      z.coerce
+        .number()
+        .int()
+        .min(1, "每人至少 1 票")
+        .max(10, "每人最多 10 票")
+        .default(DEFAULT_MAX_VOTES),
+    ),
+    /** ISO timestamp from the browser (converted from its local time), or empty. */
+    deadline: z
+      .string()
+      .trim()
+      .transform((v, ctx) => {
+        if (!v) return null;
+        const d = new Date(v);
+        if (Number.isNaN(d.getTime())) {
+          ctx.addIssue({ code: "custom", message: "截止时间无效" });
+          return z.NEVER;
+        }
+        return d;
+      }),
+    /** Checkbox: "on" when ticked. */
+    anonymous: z.preprocess((v) => v === true || v === "on" || v === "true", z.boolean()),
+  })
+  .superRefine((s, ctx) => {
+    if (s.anonymous && !s.deadline) {
+      ctx.addIssue({ code: "custom", path: ["deadline"], message: "匿名投票需要设置揭榜时间" });
+    }
+  });
 
 export type RoundSettings = z.infer<typeof roundSettingsSchema>;
 
@@ -157,3 +165,41 @@ export const END_REASON_TEXT = {
   DEADLINE: "到达截止时间",
   PROMPT: "检测到大家在一起玩",
 } as const;
+
+// Anonymous rounds (#51) reveal on Friday at noon, Beijing time (UTC+8, no DST).
+const BEIJING_MS = 8 * 60 * 60_000;
+const FRIDAY = 5;
+const REVEAL_HOUR = 12;
+
+/** The default reveal: the next Friday 12:00 Beijing time at least a minute away. */
+export function nextReveal(now = new Date()): Date {
+  const local = new Date(now.getTime() + BEIJING_MS);
+  const days = (FRIDAY - local.getUTCDay() + 7) % 7;
+  let at =
+    Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate() + days, REVEAL_HOUR) -
+    BEIJING_MS;
+  if (at <= now.getTime() + 60_000) at += 7 * 24 * 60 * 60_000;
+  return new Date(at);
+}
+
+/** Counts, ranks and voters are hidden while an anonymous round is open, unless you peeked. */
+export function resultsHidden(round: { anonymous: boolean; status: string }, peeked: boolean) {
+  return round.anonymous && round.status === "OPEN" && !peeked;
+}
+
+export function endReasonText(reason: keyof typeof END_REASON_TEXT, anonymous: boolean) {
+  return anonymous && reason === "DEADLINE" ? "到点揭榜" : END_REASON_TEXT[reason];
+}
+
+/** e.g. "10/31周五 12:00", Beijing time, for chat and notifications. */
+export function formatReveal(at: Date): string {
+  return at.toLocaleString("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    month: "numeric",
+    day: "numeric",
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}

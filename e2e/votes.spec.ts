@@ -31,6 +31,7 @@ async function startRound(
   await page.goto(`${path}/votes`);
   if (opts.title) await page.getByLabel("标题").fill(opts.title);
   if (opts.maxVotes) await page.getByLabel("每人票数").fill(String(opts.maxVotes));
+  await page.getByLabel("匿名投票").uncheck();
   await page.getByRole("button", { name: "发起投票" }).click();
   await expect(page).toHaveURL(/\/votes\/\w+$/, { timeout: 30_000 });
   return page.url();
@@ -146,6 +147,7 @@ test("only one open round; deadlines end rounds; plain end", async ({ browser })
 
   // Starting with a deadline in the past is rejected.
   await owner.page.goto(`${path}/votes`);
+  await owner.page.getByLabel("匿名投票").uncheck();
   await owner.page.getByLabel("截止时间").fill("2020-01-01T10:00");
   await owner.page.getByRole("button", { name: "发起投票" }).click();
   await expect(mainAlert(owner.page)).toContainText("截止时间需要在至少 1 分钟之后");

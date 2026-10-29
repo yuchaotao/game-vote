@@ -46,7 +46,7 @@ export default async function GroupLayout({
           roundLabel={`第 ${prompt.round.number} 轮投票`}
           players={prompt.players}
           memberCount={prompt.memberCount}
-          rank={prompt.rank}
+          rank={prompt.round.anonymous ? null : prompt.rank}
         />
       )}
       <GroupTabs groupId={id} unread={unread[id] ?? 0} />
