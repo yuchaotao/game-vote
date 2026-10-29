@@ -304,7 +304,11 @@ export async function libraryHotness(
   const [{ intervals }, votes] = await Promise.all([
     memberIntervals(groupId, since),
     db.voteBallot.findMany({
-      where: { round: { groupId }, castAt: { gte: since } },
+      // Votes in an anonymous round stay out until it is revealed.
+      where: {
+        round: { groupId, OR: [{ anonymous: false }, { status: "ENDED" }] },
+        castAt: { gte: since },
+      },
       select: { gameId: true, castAt: true },
     }),
   ]);

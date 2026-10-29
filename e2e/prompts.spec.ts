@@ -52,6 +52,7 @@ async function setUp(browser: Parameters<typeof groupOfTwo>[0]) {
   await page.getByRole("button", { name: "添加 Apex Legends™" }).click();
   await expect(mainStatus(page)).toBeVisible();
   await page.goto(`${path}/votes`);
+  await page.getByLabel("匿名投票").uncheck();
   await page.getByRole("button", { name: "发起投票" }).click();
   await expect(page).toHaveURL(/\/votes\/\w+$/, { timeout: 30_000 });
   await page.getByRole("button", { name: "加入候选" }).click();

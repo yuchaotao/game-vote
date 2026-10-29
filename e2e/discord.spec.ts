@@ -100,6 +100,7 @@ test("vote from the live Discord message; it follows changes from either side", 
   await owner.page.getByRole("button", { name: "添加 Apex Legends™" }).click();
   await expect(mainStatus(owner.page)).toBeVisible();
   await owner.page.goto(`${path}/votes`);
+  await owner.page.getByLabel("匿名投票").uncheck();
   await owner.page.getByRole("button", { name: "发起投票" }).click();
   await expect(owner.page).toHaveURL(/\/votes\/\w+$/, { timeout: 30_000 });
   const roundId = owner.page.url().split("/").pop()!;

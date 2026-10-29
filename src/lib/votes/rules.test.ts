@@ -3,6 +3,9 @@ import {
   canCast,
   deadlineError,
   replayFrames,
+  endReasonText,
+  nextReveal,
+  resultsHidden,
   roundSettingsSchema,
   standings,
   winnerOf,
@@ -89,6 +92,7 @@ describe("round settings", () => {
       title: "周五",
       maxVotes: 3,
       deadline: null,
+      anonymous: false,
     });
     const r = roundSettingsSchema.parse({
       title: "",
@@ -110,5 +114,54 @@ describe("round settings", () => {
     expect(deadlineError(new Date(now + 30_000), now)).toMatch("至少 1 分钟");
     expect(deadlineError(new Date(now + 31 * 86_400_000), now)).toMatch("30 天");
     expect(deadlineError(new Date(now + 3_600_000), now)).toBeNull();
+  });
+});
+
+describe("anonymous rounds", () => {
+  it("need a reveal time", () => {
+    const ok = roundSettingsSchema.safeParse({
+      title: "",
+      maxVotes: "3",
+      deadline: "2026-10-30T04:00:00.000Z",
+      anonymous: "on",
+    });
+    expect(ok.success && ok.data.anonymous).toBe(true);
+    const missing = roundSettingsSchema.safeParse({
+      title: "",
+      maxVotes: "3",
+      deadline: "",
+      anonymous: "on",
+    });
+    expect(missing.success).toBe(false);
+  });
+
+  it("reveal by default on the next Friday 12:00 Beijing time", () => {
+    // Wednesday 10:00 Beijing -> this Friday.
+    expect(nextReveal(new Date("2026-10-28T02:00:00Z")).toISOString()).toBe(
+      "2026-10-30T04:00:00.000Z",
+    );
+    // Friday 11:58 Beijing -> today at noon; 11:59:30 -> too close, next week.
+    expect(nextReveal(new Date("2026-10-30T03:58:00Z")).toISOString()).toBe(
+      "2026-10-30T04:00:00.000Z",
+    );
+    expect(nextReveal(new Date("2026-10-30T03:59:30Z")).toISOString()).toBe(
+      "2026-11-06T04:00:00.000Z",
+    );
+    // Friday 13:00 and Saturday 01:00 Beijing (still Friday in UTC) -> next week.
+    expect(nextReveal(new Date("2026-10-30T05:00:00Z")).toISOString()).toBe(
+      "2026-11-06T04:00:00.000Z",
+    );
+    expect(nextReveal(new Date("2026-10-30T17:00:00Z")).toISOString()).toBe(
+      "2026-11-06T04:00:00.000Z",
+    );
+  });
+
+  it("hide results while open, unless you peeked", () => {
+    expect(resultsHidden({ anonymous: true, status: "OPEN" }, false)).toBe(true);
+    expect(resultsHidden({ anonymous: true, status: "OPEN" }, true)).toBe(false);
+    expect(resultsHidden({ anonymous: true, status: "ENDED" }, false)).toBe(false);
+    expect(resultsHidden({ anonymous: false, status: "OPEN" }, false)).toBe(false);
+    expect(endReasonText("DEADLINE", true)).toBe("到点揭榜");
+    expect(endReasonText("DEADLINE", false)).toBe("到达截止时间");
   });
 });

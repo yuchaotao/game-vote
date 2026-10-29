@@ -22,6 +22,7 @@ import {
   addCandidate,
   endAndStartNext,
   endRound,
+  peekRound,
   removeCandidate,
   startRound,
   toggleVote,
@@ -201,4 +202,11 @@ export async function resolvePromptAction(
   refresh(groupId);
   if (nextId) redirect(`/groups/${groupId}/votes/${nextId}`);
   return { ok: choice === "continue" ? "已继续当前投票" : "投票已结束" };
+}
+
+export async function peekAction(groupId: string, roundId: string): Promise<FormState> {
+  return asMember(groupId, async (userId) => {
+    await peekRound(groupId, roundId, userId);
+    refresh(groupId);
+  });
 }

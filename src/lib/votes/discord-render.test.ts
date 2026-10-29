@@ -112,3 +112,20 @@ describe("verifyDiscordSignature", () => {
     expect(verifyDiscordSignature(hex, "not-hex", ts, body)).toBe(false);
   });
 });
+
+describe("renderRound, anonymous", () => {
+  it("shows no counts or order before the reveal, and who peeked", () => {
+    const m = renderRound({
+      ...base,
+      hidden: true,
+      deadline: new Date("2026-10-30T04:00:00Z"),
+      peekers: ["小明"],
+    });
+    const text = m.embeds[0].description;
+    expect(text).toContain("• Apex\n• 博德之门3");
+    expect(text).not.toMatch(/\d+ 票/);
+    expect(text).toContain("揭榜 <t:1793332800:F>");
+    expect(text).toContain("👀 偷看过：小明");
+    expect(m.components[0].components.map((b) => b.label)).toEqual(["Apex", "博德之门3"]);
+  });
+});

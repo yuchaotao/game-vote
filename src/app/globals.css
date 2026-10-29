@@ -22,3 +22,55 @@
     cursor: not-allowed;
   }
 }
+
+/* Anonymous round reveal (#51): places fade in last to first, the winner pops. */
+@keyframes reveal-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+@keyframes reveal-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes reveal-glow {
+  50% {
+    box-shadow: 0 0 0 6px rgb(250 204 21 / 0.5);
+  }
+}
+@keyframes confetti-fall {
+  from {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  to {
+    transform: translate3d(var(--dx), 110vh, 0) rotate(var(--rot));
+  }
+}
+.reveal-in {
+  animation: reveal-in 0.5s ease-out var(--d, 0s) both;
+}
+.reveal-winner {
+  animation:
+    reveal-pop 0.7s cubic-bezier(0.2, 1.4, 0.4, 1) var(--d, 0s) both,
+    reveal-glow 1.4s ease-in-out calc(var(--d, 0s) + 0.7s) 3;
+}
+.confetti {
+  animation: confetti-fall 3s cubic-bezier(0.3, 0.6, 0.6, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal-in,
+  .reveal-winner,
+  .confetti {
+    animation: none;
+  }
+}

@@ -12,7 +12,9 @@ import { scheduleDiscordSync } from "./discord-sync";
 import {
   canCast,
   deadlineError,
-  END_REASON_TEXT,
+  endReasonText,
+  formatReveal,
+  nextReveal,
   standings,
   winnerOf,
   type RoundSettings,
@@ -84,6 +86,7 @@ export async function startRound(
           title: settings.title,
           maxVotes: settings.maxVotes,
           deadline: settings.deadline,
+          anonymous: settings.anonymous,
           startedById: userId,
           previousId: carryFrom ?? null,
         },
@@ -104,16 +107,18 @@ export async function startRound(
     throw err;
   }
 
+  const anonymity =
+    round.anonymous && round.deadline ? `，匿名投票，${formatReveal(round.deadline)} 揭榜` : "";
   await postSystemMessage(
     groupId,
-    `${await nameOf(userId)} 发起了${roundLabel(round)}，每人最多 ${round.maxVotes} 票`,
+    `${await nameOf(userId)} 发起了${roundLabel(round)}，每人最多 ${round.maxVotes} 票${anonymity}`,
     [userId],
   );
   await notifyChanged(groupId, round.id);
   const starter = await nameOf(userId);
   await notifyMembers(groupId, userId, "NEW_ROUND", (group) => ({
     title: `「${group}」发起了${roundLabel(round)}`,
-    body: `${starter} 在「${group}」发起了${roundLabel(round)}，每人最多 ${round.maxVotes} 票，快来投票吧。`,
+    body: `${starter} 在「${group}」发起了${roundLabel(round)}，每人最多 ${round.maxVotes} 票${anonymity}，快来投票吧。`,
     path: `/groups/${groupId}/votes/${round.id}`,
     refId: round.id,
   }));
@@ -200,7 +205,7 @@ export async function endRound(
   const result = round.winner ? `胜出：《${round.winner.name}》` : "没有人投票";
   await postSystemMessage(
     groupId,
-    `${roundLabel(round)}已结束（${who}${END_REASON_TEXT[reason]}）。${result}`,
+    `${roundLabel(round)}已结束（${who}${endReasonText(reason, round.anonymous)}）。${result}`,
     userId ? [userId] : [],
   );
   await notifyChanged(groupId, roundId);
@@ -218,7 +223,13 @@ export async function endAndStartNext(
   const next = await startRound(
     groupId,
     userId,
-    { title: "", maxVotes: ended.maxVotes, deadline: null },
+    // An anonymous round is followed by another, revealed next Friday.
+    {
+      title: "",
+      maxVotes: ended.maxVotes,
+      deadline: ended.anonymous ? nextReveal() : null,
+      anonymous: ended.anonymous,
+    },
     roundId,
   );
   return { ended, next };
@@ -385,4 +396,39 @@ export function recentVotes(groupId: string, since: Date) {
     where: { round: { groupId }, castAt: { gte: since } },
     select: { gameId: true, castAt: true },
   });
+}
+
+/** Looks at an anonymous round's results early; everyone can see who did (#51). */
+export async function peekRound(groupId: string, roundId: string, userId: string) {
+  const round = await openRound(groupId, roundId);
+  if (!round.anonymous) throw new VoteError("这轮投票不是匿名的");
+  const { count } = await db.votePeek.createMany({
+    data: [{ roundId, userId }],
+    skipDuplicates: true,
+  });
+  if (count === 0) return;
+  await postSystemMessage(
+    groupId,
+    `👀 ${await nameOf(userId)} 偷看了${roundLabel(round)}的投票结果`,
+    [userId],
+  );
+  await notifyChanged(groupId, roundId);
+}
+
+/** Who peeked at an anonymous round, first first. */
+export function peekers(roundId: string) {
+  return db.votePeek.findMany({
+    where: { roundId },
+    orderBy: { at: "asc" },
+    select: { userId: true, user: { select: { displayName: true } } },
+  });
+}
+
+/** True only the first time this member opens a revealed anonymous round. */
+export async function firstRevealVisit(roundId: string, userId: string): Promise<boolean> {
+  const { count } = await db.voteRevealSeen.createMany({
+    data: [{ roundId, userId }],
+    skipDuplicates: true,
+  });
+  return count > 0;
 }

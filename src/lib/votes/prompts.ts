@@ -15,11 +15,17 @@ import {
 
 // "You're already playing a front-runner together: end the vote?" (#10)
 
+/** Where the game stands, unless the round is anonymous (then that stays secret). */
+const placeOf = (round: { number: number; anonymous: boolean }, rank: number) =>
+  round.anonymous
+    ? `它是第 ${round.number} 轮投票的候选。`
+    : `它在第 ${round.number} 轮投票中排第 ${rank}。`;
+
 /** Looks at every open round and raises at most one prompt per round (worker job). */
 export async function checkPrompts(now = new Date()) {
   const rounds = await db.voteRound.findMany({
     where: { status: VoteRoundStatus.OPEN },
-    select: { id: true, groupId: true, number: true, title: true },
+    select: { id: true, groupId: true, number: true, title: true, anonymous: true },
   });
   let raised = 0;
   for (const round of rounds) {
@@ -65,14 +71,14 @@ export async function checkPrompts(now = new Date()) {
     await postSystemMessage(
       round.groupId,
       `检测到 ${candidate.players}/${memberCount} 名成员正在一起玩《${prompt.game.name}》（已 ${minutes}），` +
-        `它在第 ${round.number} 轮投票中排第 ${candidate.rank}。可以在群页面顶部选择是否结束投票。`,
+        `${placeOf(round, candidate.rank)}可以在群页面顶部选择是否结束投票。`,
     );
     await notifyChanged(round.groupId, round.id);
     await notifyMembers(round.groupId, null, "VOTE_PROMPT", (group) => ({
       title: `「${group}」：大家正在一起玩《${prompt.game.name}》`,
       body:
         `检测到 ${candidate.players}/${memberCount} 名成员正在一起玩《${prompt.game.name}》（已 ${minutes}），` +
-        `它在第 ${round.number} 轮投票中排第 ${candidate.rank}。要结束这轮投票吗？`,
+        `${placeOf(round, candidate.rank)}要结束这轮投票吗？`,
       path: `/groups/${round.groupId}`,
       refId: prompt.id,
     }));
@@ -134,7 +140,7 @@ export function pendingPrompt(groupId: string) {
     where: { status: VotePromptStatus.PENDING, round: { groupId, status: VoteRoundStatus.OPEN } },
     include: {
       game: { select: { id: true, name: true, coverUrl: true } },
-      round: { select: { id: true, number: true, title: true } },
+      round: { select: { id: true, number: true, title: true, anonymous: true } },
     },
   });
 }
