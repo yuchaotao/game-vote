@@ -52,6 +52,8 @@ test("voting on a phone: cards stack, nothing overlaps or scrolls sideways", asy
 
   await shot(page, "round-phone");
   await noSideways(page);
+  // The header stays one line (logo and nav items used to wrap).
+  expect((await page.getByRole("banner").boundingBox())!.height).toBeLessThan(70);
   for (const card of await page
     .getByRole("list", { name: "候选游戏" })
     .getByRole("listitem")
