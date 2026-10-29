@@ -108,4 +108,5 @@ C="docker compose -p game-vote-prod --env-file deploy/.env.prod -f docker-compos
 $C ps                 # 状态
 $C logs -f web        # 日志
 $C restart worker     # 重启 worker
+$C exec worker node dist/worker/run-once.js poll-presence   # 立即运行一次某个后台任务
 ```
