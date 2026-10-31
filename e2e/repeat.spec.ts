@@ -103,6 +103,14 @@ test("stack votes on one game on the website and from Discord", async ({ browser
   await expect(bg3.getByText("×2")).toBeVisible();
   await expect(plus).toBeDisabled();
   await expect(page.getByRole("button", { name: "加一票 Apex Legends™" })).toBeDisabled();
+  // On a phone: the stepper fits without sideways scrolling.
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.screenshot({ path: "test-results/screens/repeat-phone.png", fullPage: true });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    ),
+  ).toBeLessThanOrEqual(0);
   await minus.click();
   await expect(page.getByText("你还剩 1 / 2 票")).toBeVisible();
   await expect(bg3.getByText("×2")).toHaveCount(0);
