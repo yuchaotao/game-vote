@@ -15,11 +15,20 @@ export const promptButtonId = (promptId: string, choice: string) => `prompt:${pr
 
 export function parseButtonId(customId: string) {
   const [kind, id, arg] = customId.split(":");
-  if ((kind === "vote" || kind === "prompt") && id && arg) return { kind, id, arg } as const;
+  if ((kind === "vote" || kind === "vadd" || kind === "vsub" || kind === "prompt") && id && arg) {
+    return { kind, id, arg } as const;
+  }
   return null;
 }
 
-type Button = { type: 2; style: number; label: string; custom_id?: string; url?: string };
+type Button = {
+  type: 2;
+  style: number;
+  label: string;
+  custom_id?: string;
+  url?: string;
+  disabled?: boolean;
+};
 
 const row = (components: Button[]) => ({ type: ACTION_ROW, components });
 const link = (url: string): Button => ({
@@ -59,6 +68,8 @@ export type RoundView = {
   ranked: { gameId: string; name: string; votes: number; rank: number }[];
   voters: number;
   winner: string | null;
+  /** Several votes on one game allowed (#53). */
+  repeat?: boolean;
   /** Anonymous and not revealed yet: no counts or order (#51). */
   hidden?: boolean;
   peekers?: string[];
@@ -113,7 +124,9 @@ export function renderRound(r: RoundView, mentionIds: string[] = []) {
         color: r.open ? INDIGO : GRAY,
         footer: {
           text: r.open
-            ? `每人最多 ${r.maxVotes} 票 · 点按钮投票，再点一次取消 · ${r.voters} 人已投`
+            ? r.repeat
+              ? `每人 ${r.maxVotes} 票，可以重复投同一个游戏 · 点按钮投一票 · ${r.voters} 人已投`
+              : `每人最多 ${r.maxVotes} 票 · 点按钮投票，再点一次取消 · ${r.voters} 人已投`
             : `投票已结束 · ${r.voters} 人投了票`,
         },
       },
@@ -173,3 +186,41 @@ export function renderPrompt(p: PromptView, mentionIds: string[] = []) {
 
 /** A reply only the person who clicked can see. */
 export const ephemeral = (content: string) => ({ type: 4, data: { content, flags: 64 } });
+
+/**
+ * The private reply in a repeat-vote round (#53): your votes on the game and
+ * −1 / +1 buttons to change them.
+ */
+export function voteStepper(o: {
+  roundId: string;
+  gameId: string;
+  name: string;
+  onGame: number;
+  used: number;
+  maxVotes: number;
+  note?: string;
+}) {
+  const left = o.maxVotes - o.used;
+  return {
+    content: `${o.note ? `${o.note}\n` : ""}你给《${o.name}》投了 **${o.onGame}** 票（还剩 ${left} / ${o.maxVotes} 票）`,
+    flags: 64,
+    components: [
+      row([
+        {
+          type: COMPONENT_BUTTON,
+          style: BUTTON.SECONDARY,
+          label: "−1",
+          custom_id: `vsub:${o.roundId}:${o.gameId}`,
+          disabled: o.onGame === 0,
+        },
+        {
+          type: COMPONENT_BUTTON,
+          style: BUTTON.PRIMARY,
+          label: "+1",
+          custom_id: `vadd:${o.roundId}:${o.gameId}`,
+          disabled: left <= 0,
+        },
+      ]),
+    ],
+  };
+}

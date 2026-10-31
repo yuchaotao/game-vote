@@ -20,10 +20,12 @@ import { resolvePrompt, type PromptChoice } from "./prompts";
 import { roundSettingsSchema } from "./rules";
 import {
   addCandidate,
+  addVote,
   endAndStartNext,
   endRound,
   peekRound,
   removeCandidate,
+  removeVote,
   startRound,
   toggleVote,
   VoteError,
@@ -207,6 +209,21 @@ export async function resolvePromptAction(
 export async function peekAction(groupId: string, roundId: string): Promise<FormState> {
   return asMember(groupId, async (userId) => {
     await peekRound(groupId, roundId, userId);
+    refresh(groupId);
+  });
+}
+
+/** Repeat-vote rounds (#53): one more vote, or one back, for a game. */
+export async function stepVoteAction(
+  groupId: string,
+  roundId: string,
+  gameId: string,
+  step: 1 | -1,
+): Promise<FormState> {
+  return asMember(groupId, async (userId) => {
+    if (!(await rateLimit(`vote:${userId}`, 60, 60))) throw new VoteError("操作太频繁了，请稍等");
+    if (step === 1) await addVote(groupId, roundId, userId, gameId);
+    else await removeVote(groupId, roundId, userId, gameId);
     refresh(groupId);
   });
 }

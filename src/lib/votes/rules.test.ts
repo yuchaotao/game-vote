@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  canCast,
+  canAdd,
   deadlineError,
   replayFrames,
   endReasonText,
@@ -56,15 +56,50 @@ describe("standings", () => {
   });
 });
 
-describe("canCast", () => {
-  it("enforces one vote per game and the per-person limit", () => {
-    expect(canCast([], "a", 3, true)).toEqual({ ok: true });
-    expect(canCast(["a"], "a", 3, true).ok).toBe(false);
-    expect(canCast(["a", "b", "c"], "d", 3, true)).toEqual({
+describe("canAdd", () => {
+  const base = { used: 0, maxVotes: 2, isCandidate: true, onThisGame: 0, repeat: false };
+
+  it("one vote per game unless the round allows repeats", () => {
+    expect(canAdd(base)).toEqual({ ok: true });
+    expect(canAdd({ ...base, used: 1, onThisGame: 1 }).ok).toBe(false);
+    expect(canAdd({ ...base, used: 1, onThisGame: 1, repeat: true })).toEqual({ ok: true });
+  });
+
+  it("never more than the votes each person has", () => {
+    expect(canAdd({ ...base, used: 2, onThisGame: 2, repeat: true })).toEqual({
       ok: false,
-      error: "每人最多 3 票，先取消一票再投",
+      error: "每人最多 2 票，先撤回一票再投",
     });
-    expect(canCast([], "x", 3, false).ok).toBe(false);
+    expect(canAdd({ ...base, used: 2 }).ok).toBe(false);
+    expect(canAdd({ ...base, isCandidate: false }).ok).toBe(false);
+  });
+});
+
+describe("standings with repeat votes", () => {
+  it("sums each member's votes and lists each voter once", () => {
+    const list = standings(
+      [
+        { gameId: "a", addedAt: "2026-01-01" },
+        { gameId: "b", addedAt: "2026-01-02" },
+      ],
+      [
+        { gameId: "b", userId: "u1", count: 2 },
+        { gameId: "a", userId: "u2" },
+      ],
+    );
+    expect(list[0]).toEqual({ gameId: "b", votes: 2, voterIds: ["u1"], rank: 1 });
+    expect(list[1]).toMatchObject({ gameId: "a", votes: 1, rank: 2 });
+  });
+
+  it("replays stacked votes and retractions", () => {
+    const at = (s: number) => new Date(Date.UTC(2026, 0, 1, 0, 0, s)).toISOString();
+    const frames = replayFrames([
+      { userId: "u1", gameId: "a", kind: "CANDIDATE", at: at(0) },
+      { userId: "u1", gameId: "a", kind: "CAST", at: at(1) },
+      { userId: "u1", gameId: "a", kind: "CAST", at: at(2) },
+      { userId: "u1", gameId: "a", kind: "RETRACT", at: at(3) },
+    ]);
+    expect(frames.map((f) => f.standings[0].votes)).toEqual([0, 1, 2, 1]);
   });
 });
 
@@ -90,9 +125,10 @@ describe("round settings", () => {
   it("parses defaults and an ISO deadline", () => {
     expect(roundSettingsSchema.parse({ title: " 周五 ", maxVotes: "", deadline: "" })).toEqual({
       title: "周五",
-      maxVotes: 3,
+      maxVotes: 2,
       deadline: null,
       anonymous: false,
+      repeatVotes: false,
     });
     const r = roundSettingsSchema.parse({
       title: "",

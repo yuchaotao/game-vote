@@ -101,6 +101,7 @@ test("vote from the live Discord message; it follows changes from either side", 
   await expect(mainStatus(owner.page)).toBeVisible();
   await owner.page.goto(`${path}/votes`);
   await owner.page.getByLabel("匿名投票").uncheck();
+  await owner.page.getByLabel("同一个游戏可以投多票").uncheck();
   await owner.page.getByRole("button", { name: "发起投票" }).click();
   await expect(owner.page).toHaveURL(/\/votes\/\w+$/, { timeout: 30_000 });
   const roundId = owner.page.url().split("/").pop()!;
@@ -122,7 +123,7 @@ test("vote from the live Discord message; it follows changes from either side", 
   const reply = await click(friendDiscord, button.custom_id!);
   expect(reply.data).toMatchObject({
     flags: 64,
-    content: "✅ 已投给《Apex Legends™》（还剩 2 / 3 票）",
+    content: "✅ 已投给《Apex Legends™》（还剩 1 / 2 票）",
   });
   runJob("sync-discord-round", { roundId });
   const live = async () => (await messages("100")).find((m) => m.id === post.id)!;

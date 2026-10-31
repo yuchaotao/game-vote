@@ -19,6 +19,7 @@ import {
   endRoundAction,
   removeCandidateAction,
   startRoundAction,
+  stepVoteAction,
   toggleVoteAction,
 } from "@/lib/votes/actions";
 import { GameCover, ReviewSummary } from "./games";
@@ -40,7 +41,8 @@ export type BoardItem = {
   game: GameLite;
   votes: number;
   rank: number;
-  voters: UserLite[];
+  /** `count`: votes that member put on the game (repeat-vote rounds). */
+  voters: (UserLite & { count?: number })[];
   addedBy: UserLite | null;
   canRemove: boolean;
 };
@@ -109,6 +111,7 @@ function toLocalInput(d: Date) {
 export function StartRoundForm({ groupId }: { groupId: string }) {
   const [state, action, pending] = useActionState(startRoundAction.bind(null, groupId), undefined);
   const [anonymous, setAnonymous] = useState(true);
+  const [repeat, setRepeat] = useState(true);
   const [local, setLocal] = useState("");
   // Anonymous rounds reveal (and end) on Friday 12:00 Beijing time by default.
   // Filled in after mount: it depends on the viewer's clock and time zone.
@@ -145,6 +148,19 @@ export function StartRoundForm({ groupId }: { groupId: string }) {
           </span>
         </span>
       </label>
+      <label className="flex items-start gap-2 text-sm">
+        <input
+          type="checkbox"
+          name="repeatVotes"
+          checked={repeat}
+          onChange={(e) => setRepeat(e.target.checked)}
+          className="mt-0.5 size-4 accent-indigo-600"
+        />
+        <span>
+          <span className="font-medium">同一个游戏可以投多票</span>
+          <span className="block text-xs text-zinc-500">可以把几票都投给最想玩的那个。</span>
+        </span>
+      </label>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field
           label="每人票数"
@@ -152,8 +168,8 @@ export function StartRoundForm({ groupId }: { groupId: string }) {
           type="number"
           min={1}
           max={10}
-          defaultValue={3}
-          hint="每个游戏最多投 1 票"
+          defaultValue={2}
+          hint={repeat ? "可以集中投给一个游戏" : "每个游戏最多投 1 票"}
         />
         <div>
           <Field
@@ -181,17 +197,21 @@ export function VoteBoard({
   open,
   hidden = false,
   celebrate = false,
+  repeat = false,
 }: {
   groupId: string;
   roundId: string;
   items: BoardItem[];
-  myVotes: string[];
+  /** Votes this member put on each game. */
+  myVotes: Record<string, number>;
   maxVotes: number;
   open: boolean;
   /** Anonymous and not revealed: no counts, ranks or voters. */
   hidden?: boolean;
   /** First look at a reveal: places appear last to first, the winner last. */
   celebrate?: boolean;
+  /** Several votes on one game allowed: a − n + stepper instead of a toggle. */
+  repeat?: boolean;
 }) {
   // Kept for the life of the page, so a live refresh doesn't cut the effect short.
   const [celebrating] = useState(celebrate);
@@ -204,7 +224,7 @@ export function VoteBoard({
       setState(res?.error ? res : undefined);
     });
   const top = Math.max(1, ...items.map((i) => i.votes));
-  const left = maxVotes - myVotes.length;
+  const left = maxVotes - Object.values(myVotes).reduce((a, b) => a + b, 0);
 
   if (items.length === 0) {
     return (
@@ -221,7 +241,8 @@ export function VoteBoard({
       <Status state={state} />
       <ol aria-label="候选游戏" className="space-y-2">
         {items.map((item, index) => {
-          const mine = myVotes.includes(item.game.id);
+          const count = myVotes[item.game.id] ?? 0;
+          const mine = count > 0;
           return (
             <li
               key={item.game.id}
@@ -272,8 +293,17 @@ export function VoteBoard({
                   {item.voters.length > 0 && (
                     <div className="flex flex-wrap gap-1" aria-label="投票的人">
                       {item.voters.map((v) => (
-                        <span key={v.id} title={v.displayName}>
+                        <span
+                          key={v.id}
+                          title={`${v.displayName}${(v.count ?? 1) > 1 ? ` · ${v.count} 票` : ""}`}
+                          className="relative"
+                        >
                           <Avatar src={v.avatarUrl} name={v.displayName} size={20} />
+                          {(v.count ?? 1) > 1 && (
+                            <span className="absolute -right-1.5 -bottom-1 rounded-full bg-indigo-600 px-1 text-[10px] leading-4 font-semibold text-white">
+                              ×{v.count}
+                            </span>
+                          )}
                         </span>
                       ))}
                     </div>
@@ -294,17 +324,58 @@ export function VoteBoard({
                       移除
                     </button>
                   )}
-                  <Button
-                    type="button"
-                    variant={mine ? "primary" : "secondary"}
-                    className="min-h-9 px-3 py-1.5"
-                    aria-pressed={mine}
-                    aria-label={`${mine ? "取消投票" : "投票"} ${item.game.name}`}
-                    disabled={pending || (!mine && left <= 0)}
-                    onClick={() => run(() => toggleVoteAction(groupId, roundId, item.game.id))}
-                  >
-                    {mine ? "✓ 已投" : "投一票"}
-                  </Button>
+                  {repeat ? (
+                    <div
+                      role="group"
+                      aria-label={`我给 ${item.game.name} 的票`}
+                      className={`flex min-h-9 items-center overflow-hidden rounded-lg border ${
+                        mine
+                          ? "border-indigo-400 dark:border-indigo-700"
+                          : "border-zinc-300 dark:border-zinc-700"
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        aria-label={`撤回一票 ${item.game.name}`}
+                        disabled={pending || !mine}
+                        onClick={() =>
+                          run(() => stepVoteAction(groupId, roundId, item.game.id, -1))
+                        }
+                        className="h-9 w-9 text-lg text-zinc-500 hover:bg-zinc-100 disabled:opacity-30 dark:hover:bg-zinc-800"
+                      >
+                        −
+                      </button>
+                      <span
+                        aria-live="polite"
+                        className={`min-w-10 text-center text-sm font-semibold tabular-nums ${
+                          mine ? "text-indigo-700 dark:text-indigo-300" : "text-zinc-400"
+                        }`}
+                      >
+                        {count} 票
+                      </span>
+                      <button
+                        type="button"
+                        aria-label={`加一票 ${item.game.name}`}
+                        disabled={pending || left <= 0}
+                        onClick={() => run(() => stepVoteAction(groupId, roundId, item.game.id, 1))}
+                        className="h-9 w-9 bg-indigo-600 text-lg text-white hover:bg-indigo-500 disabled:bg-zinc-200 disabled:text-zinc-400 dark:disabled:bg-zinc-800"
+                      >
+                        +
+                      </button>
+                    </div>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant={mine ? "primary" : "secondary"}
+                      className="min-h-9 px-3 py-1.5"
+                      aria-pressed={mine}
+                      aria-label={`${mine ? "取消投票" : "投票"} ${item.game.name}`}
+                      disabled={pending || (!mine && left <= 0)}
+                      onClick={() => run(() => toggleVoteAction(groupId, roundId, item.game.id))}
+                    >
+                      {mine ? "✓ 已投" : "投一票"}
+                    </Button>
+                  )}
                 </div>
               )}
             </li>

@@ -35,6 +35,7 @@ test("voting on a phone: cards stack, nothing overlaps or scrolls sideways", asy
   }
   await owner.page.goto(`${path}/votes`);
   await owner.page.getByLabel("匿名投票").uncheck();
+  await owner.page.getByLabel("同一个游戏可以投多票").uncheck();
   await owner.page.getByRole("button", { name: "发起投票" }).click();
   await expect(owner.page).toHaveURL(/\/votes\/\w+$/, { timeout: 30_000 });
   const roundUrl = owner.page.url();

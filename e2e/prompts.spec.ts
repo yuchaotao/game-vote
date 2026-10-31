@@ -53,6 +53,7 @@ async function setUp(browser: Parameters<typeof groupOfTwo>[0]) {
   await expect(mainStatus(page)).toBeVisible();
   await page.goto(`${path}/votes`);
   await page.getByLabel("匿名投票").uncheck();
+  await page.getByLabel("同一个游戏可以投多票").uncheck();
   await page.getByRole("button", { name: "发起投票" }).click();
   await expect(page).toHaveURL(/\/votes\/\w+$/, { timeout: 30_000 });
   await page.getByRole("button", { name: "加入候选" }).click();
@@ -108,7 +109,7 @@ test("end the vote and start the next round from the prompt", async ({ browser }
   const { owner, friend, path, steam, roundUrl } = await setUp(browser);
   await friend.page.goto(roundUrl);
   await friend.page.getByRole("button", { name: "投票 Apex Legends™" }).click();
-  await expect(friend.page.getByText("你还剩 2 / 3 票")).toBeVisible();
+  await expect(friend.page.getByText("你还剩 1 / 2 票")).toBeVisible();
 
   await playTogether(steam, [owner, friend], 25);
   runJob("check-prompts");

@@ -413,6 +413,8 @@ model VoteRound {
   anonymous        Boolean          @default(false)
   peeks            VotePeek[]
   revealsSeen      VoteRevealSeen[]
+  /// A member may put several of their votes on the same game (#53).
+  repeatVotes      Boolean          @default(false)
 
   @@unique([groupId, number])
   @@index([groupId, status])
@@ -441,6 +443,8 @@ model VoteBallot {
   round VoteRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
   user  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   game  Game      @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  /// Votes this member put on this game (1 unless the round allows repeats).
+  count Int       @default(1)
 
   @@id([roundId, userId, gameId])
   @@index([roundId, gameId])
