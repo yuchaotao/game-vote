@@ -309,10 +309,12 @@ export async function libraryHotness(
         round: { groupId, OR: [{ anonymous: false }, { status: "ENDED" }] },
         castAt: { gte: since },
       },
-      select: { gameId: true, castAt: true },
+      select: { gameId: true, castAt: true, count: true },
     }),
   ]);
-  return hotness(entries, intervals, votes);
+  // A ballot with several votes counts as that many.
+  const each = votes.flatMap((v) => Array.from({ length: v.count }, () => v));
+  return hotness(entries, intervals, each);
 }
 
 /** Group members' play since `since` (open sessions end at their last confirmation). */

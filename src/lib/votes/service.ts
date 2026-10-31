@@ -10,7 +10,7 @@ import { libraryHotness } from "@/lib/play/service";
 import { redis } from "@/lib/redis";
 import { scheduleDiscordSync } from "./discord-sync";
 import {
-  canCast,
+  canAdd,
   deadlineError,
   endReasonText,
   formatReveal,
@@ -87,6 +87,7 @@ export async function startRound(
           maxVotes: settings.maxVotes,
           deadline: settings.deadline,
           anonymous: settings.anonymous,
+          repeatVotes: settings.repeatVotes,
           startedById: userId,
           previousId: carryFrom ?? null,
         },
@@ -108,7 +109,8 @@ export async function startRound(
   }
 
   const anonymity =
-    round.anonymous && round.deadline ? `，匿名投票，${formatReveal(round.deadline)} 揭榜` : "";
+    (round.repeatVotes ? "，可以重复投同一个游戏" : "") +
+    (round.anonymous && round.deadline ? `，匿名投票，${formatReveal(round.deadline)} 揭榜` : "");
   await postSystemMessage(
     groupId,
     `${await nameOf(userId)} 发起了${roundLabel(round)}，每人最多 ${round.maxVotes} 票${anonymity}`,
@@ -229,6 +231,7 @@ export async function endAndStartNext(
       maxVotes: ended.maxVotes,
       deadline: ended.anonymous ? nextReveal() : null,
       anonymous: ended.anonymous,
+      repeatVotes: ended.repeatVotes,
     },
     roundId,
   );
@@ -297,32 +300,104 @@ export async function removeCandidate(
  * Casts or retracts the user's vote for a candidate. Serialised per round
  * (row lock) so the per-person limit holds under concurrent clicks.
  */
+/** Locks the round for this member's vote; returns it with their votes per game. */
+async function lockForVote(tx: Prisma.TransactionClient, roundId: string, userId: string) {
+  await tx.$queryRaw`SELECT id FROM "VoteRound" WHERE id = ${roundId} FOR UPDATE`;
+  const round = await tx.voteRound.findUniqueOrThrow({ where: { id: roundId } });
+  if (round.status !== VoteRoundStatus.OPEN) throw new VoteError("这轮投票已经结束了");
+  const mine = await tx.voteBallot.findMany({
+    where: { roundId, userId },
+    select: { gameId: true, count: true },
+  });
+  const onGame = (gameId: string) => mine.find((b) => b.gameId === gameId)?.count ?? 0;
+  return { round, onGame, used: mine.reduce((n, b) => n + b.count, 0) };
+}
+
+/** One more vote for the game; returns this member's votes on it. */
+async function addOne(
+  tx: Prisma.TransactionClient,
+  roundId: string,
+  userId: string,
+  gameId: string,
+) {
+  const { round, onGame, used } = await lockForVote(tx, roundId, userId);
+  const isCandidate = (await tx.voteCandidate.count({ where: { roundId, gameId } })) > 0;
+  const check = canAdd({
+    used,
+    maxVotes: round.maxVotes,
+    isCandidate,
+    onThisGame: onGame(gameId),
+    repeat: round.repeatVotes,
+  });
+  if (!check.ok) throw new VoteError(check.error);
+  await tx.voteBallot.upsert({
+    where: { roundId_userId_gameId: { roundId, userId, gameId } },
+    create: { roundId, userId, gameId },
+    update: { count: { increment: 1 } },
+  });
+  await tx.voteEvent.create({ data: { roundId, userId, gameId, kind: VoteEventKind.CAST } });
+  return onGame(gameId) + 1;
+}
+
+/** Takes one vote back from the game; returns this member's votes left on it. */
+async function removeOne(
+  tx: Prisma.TransactionClient,
+  roundId: string,
+  userId: string,
+  gameId: string,
+) {
+  const { onGame } = await lockForVote(tx, roundId, userId);
+  const n = onGame(gameId);
+  if (n === 0) throw new VoteError("你还没有给这个游戏投票");
+  const where = { roundId_userId_gameId: { roundId, userId, gameId } };
+  if (n === 1) await tx.voteBallot.delete({ where });
+  else await tx.voteBallot.update({ where, data: { count: { decrement: 1 } } });
+  await tx.voteEvent.create({ data: { roundId, userId, gameId, kind: VoteEventKind.RETRACT } });
+  return n - 1;
+}
+
+/** Votes for the game, or takes your vote back (one-vote-per-game rounds). */
 export async function toggleVote(groupId: string, roundId: string, userId: string, gameId: string) {
   await openRound(groupId, roundId);
   const cast = await db.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT id FROM "VoteRound" WHERE id = ${roundId} FOR UPDATE`;
-    const round = await tx.voteRound.findUniqueOrThrow({ where: { id: roundId } });
-    if (round.status !== VoteRoundStatus.OPEN) throw new VoteError("这轮投票已经结束了");
-    const mine = await tx.voteBallot.findMany({
-      where: { roundId, userId },
-      select: { gameId: true },
-    });
-    const myGames = mine.map((b) => b.gameId);
-
-    if (myGames.includes(gameId)) {
-      await tx.voteBallot.delete({ where: { roundId_userId_gameId: { roundId, userId, gameId } } });
-      await tx.voteEvent.create({ data: { roundId, userId, gameId, kind: VoteEventKind.RETRACT } });
+    const { onGame } = await lockForVote(tx, roundId, userId);
+    if (onGame(gameId) > 0) {
+      await removeOne(tx, roundId, userId, gameId);
       return false;
     }
-    const isCandidate = (await tx.voteCandidate.count({ where: { roundId, gameId } })) > 0;
-    const check = canCast(myGames, gameId, round.maxVotes, isCandidate);
-    if (!check.ok) throw new VoteError(check.error);
-    await tx.voteBallot.create({ data: { roundId, userId, gameId } });
-    await tx.voteEvent.create({ data: { roundId, userId, gameId, kind: VoteEventKind.CAST } });
+    await addOne(tx, roundId, userId, gameId);
     return true;
   });
   await notifyChanged(groupId, roundId);
   return cast;
+}
+
+/** One more vote for the game (#53); returns your votes on it. */
+export async function addVote(groupId: string, roundId: string, userId: string, gameId: string) {
+  await openRound(groupId, roundId);
+  const n = await db.$transaction((tx) => addOne(tx, roundId, userId, gameId));
+  await notifyChanged(groupId, roundId);
+  return n;
+}
+
+/** Takes one of your votes back from the game; returns your votes left on it. */
+export async function removeVote(groupId: string, roundId: string, userId: string, gameId: string) {
+  await openRound(groupId, roundId);
+  const n = await db.$transaction((tx) => removeOne(tx, roundId, userId, gameId));
+  await notifyChanged(groupId, roundId);
+  return n;
+}
+
+/** A member's votes in a round: on one game, and in total. */
+export async function myVotes(roundId: string, userId: string, gameId: string) {
+  const ballots = await db.voteBallot.findMany({
+    where: { roundId, userId },
+    select: { gameId: true, count: true },
+  });
+  return {
+    onGame: ballots.find((b) => b.gameId === gameId)?.count ?? 0,
+    used: ballots.reduce((n, b) => n + b.count, 0),
+  };
 }
 
 const roundInclude = {

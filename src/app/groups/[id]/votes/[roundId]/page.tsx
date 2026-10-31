@@ -58,12 +58,16 @@ export default async function RoundPage({
           game: c.game,
           votes: s.votes,
           rank: s.rank,
-          voters: round.ballots.filter((b) => b.gameId === s.gameId).map((b) => b.user),
+          voters: round.ballots
+            .filter((b) => b.gameId === s.gameId)
+            .map((b) => ({ ...b.user, count: b.count })),
           addedBy: c.addedBy,
           canRemove: s.votes === 0 && (c.addedById === user.id || group.ownerId === user.id),
         };
       });
-  const myVotes = round.ballots.filter((b) => b.userId === user.id).map((b) => b.gameId);
+  const myVotes = Object.fromEntries(
+    round.ballots.filter((b) => b.userId === user.id).map((b) => [b.gameId, b.count]),
+  );
 
   const [library, events] = await Promise.all([
     open ? listLibrary(id) : Promise.resolve([]),
@@ -90,7 +94,8 @@ export default async function RoundPage({
             <h2 className="text-xl font-bold">{label}</h2>
             <p className="text-sm text-zinc-500">
               {round.startedBy?.displayName ?? "某人"} 于 <LocalDate value={round.startedAt} /> 发起
-              · 每人最多 {round.maxVotes} 票 · {voters} / {group.members.length} 人已投
+              · 每人最多 {round.maxVotes} 票{round.repeatVotes ? "（可重复投同一个游戏）" : ""} ·{" "}
+              {voters} / {group.members.length} 人已投
             </p>
             {open && round.deadline && (
               <p className="text-sm text-amber-700 dark:text-amber-400">
@@ -182,6 +187,7 @@ export default async function RoundPage({
           maxVotes={round.maxVotes}
           open={open}
           hidden={hidden}
+          repeat={round.repeatVotes}
           celebrate={celebrate}
         />
         {open && <EndRoundControls groupId={id} roundId={roundId} />}

@@ -11,10 +11,11 @@ import {
   renderRound,
   type PromptView,
   type RoundView,
+  voteStepper,
 } from "./discord-render";
 import { resolvePrompt, type PromptChoice } from "./prompts";
 import { resultsHidden } from "./rules";
-import { getRound, peekers, toggleVote, VoteError } from "./service";
+import { addVote, getRound, myVotes, peekers, removeVote, toggleVote, VoteError } from "./service";
 
 // Voting from Discord (#47): the live round message, prompt messages, and the
 // buttons on them. Rules are the website's: these call the same services.
@@ -54,6 +55,7 @@ async function roundView(roundId: string): Promise<RoundView | null> {
     })),
     voters: new Set(round.ballots.map((b) => b.userId)).size,
     winner: round.winner?.name ?? null,
+    repeat: round.repeatVotes,
     // The channel sees what a member who hasn't peeked sees.
     hidden: resultsHidden(round, false),
     peekers: round.anonymous ? (await peekers(roundId)).map((p) => p.user.displayName) : [],
@@ -185,26 +187,47 @@ export async function handleInteraction(i: Interaction) {
   const userId = account.userId;
 
   try {
-    if (button.kind === "vote") {
+    if (button.kind !== "prompt") {
       const round = await db.voteRound.findUnique({
         where: { id: button.id },
-        select: { groupId: true, maxVotes: true },
+        select: { groupId: true, maxVotes: true, repeatVotes: true },
       });
       if (!round) return ephemeral("这轮投票不存在了。");
       if (!(await isActiveMember(round.groupId, userId))) {
         return ephemeral(`你不是这个群的成员，不能投票。${absoluteUrl("/groups")}`);
       }
-      const cast = await toggleVote(round.groupId, button.id, userId, button.arg);
-      const [game, used] = await Promise.all([
-        db.game.findUnique({ where: { id: button.arg }, select: { name: true } }),
-        db.voteBallot.count({ where: { roundId: button.id, userId } }),
-      ]);
-      const left = `还剩 ${round.maxVotes - used} / ${round.maxVotes} 票`;
-      return ephemeral(
-        cast
-          ? `✅ 已投给《${game?.name}》（${left}）`
-          : `↩️ 已取消对《${game?.name}》的投票（${left}）`,
-      );
+      const game = await db.game.findUnique({ where: { id: button.arg }, select: { name: true } });
+      const name = game?.name ?? "这个游戏";
+
+      if (!round.repeatVotes) {
+        const cast = await toggleVote(round.groupId, button.id, userId, button.arg);
+        const { used } = await myVotes(button.id, userId, button.arg);
+        const left = `还剩 ${round.maxVotes - used} / ${round.maxVotes} 票`;
+        return ephemeral(
+          cast ? `✅ 已投给《${name}》（${left}）` : `↩️ 已取消对《${name}》的投票（${left}）`,
+        );
+      }
+
+      // Repeat votes (#53): the game button adds one; the private reply's −1 / +1
+      // buttons adjust and update that reply in place.
+      let note: string | undefined;
+      try {
+        if (button.kind === "vsub") await removeVote(round.groupId, button.id, userId, button.arg);
+        else await addVote(round.groupId, button.id, userId, button.arg);
+      } catch (err) {
+        if (!(err instanceof VoteError)) throw err;
+        note = `⚠️ ${err.message}`;
+      }
+      const mine = await myVotes(button.id, userId, button.arg);
+      const data = voteStepper({
+        roundId: button.id,
+        gameId: button.arg,
+        name,
+        ...mine,
+        maxVotes: round.maxVotes,
+        note,
+      });
+      return { type: button.kind === "vote" ? 4 : 7, data };
     }
 
     const choice = CHOICES[button.arg];

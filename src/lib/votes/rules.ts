@@ -2,7 +2,7 @@ import { z } from "zod";
 
 // Pure voting logic: round settings, tallies, ranking and replay frames.
 
-export const DEFAULT_MAX_VOTES = 3;
+export const DEFAULT_MAX_VOTES = 2;
 export const MAX_TITLE = 60;
 
 export const roundSettingsSchema = z
@@ -31,8 +31,9 @@ export const roundSettingsSchema = z
         }
         return d;
       }),
-    /** Checkbox: "on" when ticked. */
+    /** Checkboxes: "on" when ticked. */
     anonymous: z.preprocess((v) => v === true || v === "on" || v === "true", z.boolean()),
+    repeatVotes: z.preprocess((v) => v === true || v === "on" || v === "true", z.boolean()),
   })
   .superRefine((s, ctx) => {
     if (s.anonymous && !s.deadline) {
@@ -51,7 +52,8 @@ export function deadlineError(deadline: Date | null, now = Date.now()): string |
 }
 
 export type Candidate = { gameId: string; addedAt: Date | string };
-export type Ballot = { gameId: string; userId: string };
+/** `count`: votes this member put on the game (default 1). */
+export type Ballot = { gameId: string; userId: string; count?: number };
 
 export type Standing = {
   gameId: string;
@@ -70,13 +72,19 @@ export function standings(
   ballots: Ballot[],
   hot: Record<string, number> = {},
 ): Standing[] {
+  const votes = new Map<string, number>(candidates.map((c) => [c.gameId, 0]));
   const voters = new Map<string, string[]>(candidates.map((c) => [c.gameId, []]));
-  for (const b of ballots) voters.get(b.gameId)?.push(b.userId);
+  for (const b of ballots) {
+    if (!votes.has(b.gameId)) continue;
+    votes.set(b.gameId, votes.get(b.gameId)! + (b.count ?? 1));
+    const ids = voters.get(b.gameId)!;
+    if (!ids.includes(b.userId)) ids.push(b.userId);
+  }
   const order = new Map(candidates.map((c, i) => [c.gameId, i]));
   const added = (c: Candidate) => new Date(c.addedAt).getTime();
   const sorted = [...candidates].sort(
     (a, b) =>
-      voters.get(b.gameId)!.length - voters.get(a.gameId)!.length ||
+      votes.get(b.gameId)! - votes.get(a.gameId)! ||
       (hot[b.gameId] ?? 0) - (hot[a.gameId] ?? 0) ||
       added(a) - added(b) ||
       order.get(a.gameId)! - order.get(b.gameId)!,
@@ -84,12 +92,12 @@ export function standings(
   let rank = 0;
   let lastVotes = -1;
   return sorted.map((c, i) => {
-    const ids = voters.get(c.gameId)!;
-    if (ids.length !== lastVotes) {
+    const n = votes.get(c.gameId)!;
+    if (n !== lastVotes) {
       rank = i + 1;
-      lastVotes = ids.length;
+      lastVotes = n;
     }
-    return { gameId: c.gameId, votes: ids.length, voterIds: ids, rank };
+    return { gameId: c.gameId, votes: n, voterIds: voters.get(c.gameId)!, rank };
   });
 }
 
@@ -130,9 +138,12 @@ export function replayFrames(events: ReplayEvent[]): ReplayFrame[] {
       const i = candidates.findIndex((c) => c.gameId === e.gameId);
       if (i >= 0) candidates.splice(i, 1);
     } else if (e.kind === "CAST" && e.userId) {
-      ballots.set(key, { userId: e.userId, gameId: e.gameId });
+      const count = (ballots.get(key)?.count ?? 0) + 1;
+      ballots.set(key, { userId: e.userId, gameId: e.gameId, count });
     } else {
-      ballots.delete(key);
+      const left = (ballots.get(key)?.count ?? 1) - 1;
+      if (left > 0) ballots.set(key, { ...ballots.get(key)!, count: left });
+      else ballots.delete(key);
     }
     return {
       at: new Date(e.at).toISOString(),
@@ -145,16 +156,24 @@ export function replayFrames(events: ReplayEvent[]): ReplayFrame[] {
 export type ToggleCheck = { ok: true } | { ok: false; error: string };
 
 /** Whether a user may cast one more vote. */
-export function canCast(
-  myVotes: string[],
-  gameId: string,
-  maxVotes: number,
-  isCandidate: boolean,
-): ToggleCheck {
-  if (!isCandidate) return { ok: false, error: "这个游戏不在候选里" };
-  if (myVotes.includes(gameId)) return { ok: false, error: "已经投过这个游戏了" };
-  if (myVotes.length >= maxVotes) {
-    return { ok: false, error: `每人最多 ${maxVotes} 票，先取消一票再投` };
+/** Whether a member may put one more vote on a game. */
+export function canAdd(o: {
+  /** Votes they have used in the round. */
+  used: number;
+  maxVotes: number;
+  isCandidate: boolean;
+  /** Votes they already put on this game. */
+  onThisGame: number;
+  /** The round lets one person vote for a game more than once. */
+  repeat: boolean;
+}): ToggleCheck {
+  if (!o.isCandidate) return { ok: false, error: "这个游戏不在候选里" };
+  if (!o.repeat && o.onThisGame > 0) return { ok: false, error: "已经投过这个游戏了" };
+  if (o.used >= o.maxVotes) {
+    return {
+      ok: false,
+      error: `每人最多 ${o.maxVotes} 票，先${o.repeat ? "撤回" : "取消"}一票再投`,
+    };
   }
   return { ok: true };
 }

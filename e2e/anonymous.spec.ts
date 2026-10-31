@@ -37,6 +37,7 @@ test("anonymous by default: hidden until revealed; peeking is public; the reveal
   await owner.page.goto(`${path}/votes`);
   await expect(owner.page.getByLabel("匿名投票")).toBeChecked();
   await expect(owner.page.getByLabel("揭榜时间")).not.toHaveValue("");
+  await owner.page.getByLabel("同一个游戏可以投多票").uncheck();
   await owner.page.getByRole("button", { name: "发起投票" }).click();
   await expect(owner.page).toHaveURL(/\/votes\/\w+$/, { timeout: 30_000 });
   const roundUrl = owner.page.url();

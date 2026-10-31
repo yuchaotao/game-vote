@@ -90,6 +90,7 @@ test("a new round is sent to the other members over Discord", async ({ browser }
 
   await owner.page.goto(`${path}/votes`);
   await owner.page.getByLabel("匿名投票").uncheck();
+  await owner.page.getByLabel("同一个游戏可以投多票").uncheck();
   await owner.page.getByRole("button", { name: "发起投票" }).click();
   await expect(owner.page).toHaveURL(/\/votes\/\w+$/, { timeout: 30_000 });
   sendNotifications();
@@ -149,6 +150,7 @@ test("with a Discord channel linked, group events go there and @mention members"
   // A new round: one channel post mentioning the friend, and no DM.
   await owner.page.goto(`${path}/votes`);
   await owner.page.getByLabel("匿名投票").uncheck();
+  await owner.page.getByLabel("同一个游戏可以投多票").uncheck();
   await owner.page.getByRole("button", { name: "发起投票" }).click();
   await expect(owner.page).toHaveURL(/\/votes\/\w+$/, { timeout: 30_000 });
   sendNotifications();

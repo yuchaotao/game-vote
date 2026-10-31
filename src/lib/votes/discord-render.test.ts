@@ -7,6 +7,7 @@ import {
   renderPrompt,
   renderRound,
   type RoundView,
+  voteStepper,
 } from "./discord-render";
 
 const base: RoundView = {
@@ -127,5 +128,33 @@ describe("renderRound, anonymous", () => {
     expect(text).toContain("揭榜 <t:1793332800:F>");
     expect(text).toContain("👀 偷看过：小明");
     expect(m.components[0].components.map((b) => b.label)).toEqual(["Apex", "博德之门3"]);
+  });
+});
+
+describe("voteStepper", () => {
+  it("shows your votes on the game with −1 / +1, disabled at the ends", () => {
+    const m = voteStepper({
+      roundId: "r1",
+      gameId: "a",
+      name: "Apex",
+      onGame: 2,
+      used: 2,
+      maxVotes: 2,
+    });
+    expect(m.flags).toBe(64);
+    expect(m.content).toContain("你给《Apex》投了 **2** 票（还剩 0 / 2 票）");
+    const [minus, plus] = m.components[0].components;
+    expect([minus.custom_id, minus.disabled]).toEqual(["vsub:r1:a", false]);
+    expect([plus.custom_id, plus.disabled]).toEqual(["vadd:r1:a", true]);
+    const none = voteStepper({
+      roundId: "r1",
+      gameId: "a",
+      name: "Apex",
+      onGame: 0,
+      used: 0,
+      maxVotes: 2,
+    });
+    expect(none.components[0].components[0].disabled).toBe(true);
+    expect(parseButtonId("vadd:r1:a")).toEqual({ kind: "vadd", id: "r1", arg: "a" });
   });
 });
