@@ -138,7 +138,9 @@ test("stack votes on one game on the website and from Discord", async ({ browser
     stdio: "pipe",
   });
   const posts = (await (await fetch(`${mockUrl}/mock/discord/messages?channel=100`)).json()) as {
-    embeds: { footer?: { text: string } }[];
+    embeds?: { footer?: { text: string } }[];
   }[];
-  expect(posts.some((p) => p.embeds[0]?.footer?.text.includes("可以重复投同一个游戏"))).toBe(true);
+  expect(posts.some((p) => p.embeds?.[0]?.footer?.text.includes("可以重复投同一个游戏"))).toBe(
+    true,
+  );
 });
