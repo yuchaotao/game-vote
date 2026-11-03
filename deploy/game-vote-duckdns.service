@@ -1,0 +1,8 @@
+[Unit]
+Description=Update yuchaotao.duckdns.org to the current public IP
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/game-vote/deploy/duckdns-update.sh

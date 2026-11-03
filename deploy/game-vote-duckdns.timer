@@ -1,0 +1,9 @@
+[Unit]
+Description=Keep yuchaotao.duckdns.org pointed at the current public IP
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target

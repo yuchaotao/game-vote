@@ -86,6 +86,28 @@ POSTGRES_PASSWORD=<openssl rand -hex 24>
       exec -T postgres psql -U gamevote -d gamevote
   ```
 
+## 动态 DNS（DuckDNS）
+
+`www.yuchaotao.com` 是 `yuchaotao.duckdns.org` 的 CNAME。运营商换了公网 IP 而 DuckDNS 没更新时，外网就访问不到网站（2026-11-03 发生过一次，见 #55）。
+
+- `deploy/duckdns-update.sh`：把 `yuchaotao.duckdns.org` 更新为当前公网 IP；IP 变化时写入日志
+- 每 5 分钟由 systemd timer 执行（开机 1 分钟后先执行一次）
+- token 保存在 `/etc/duckdns/token`（只有 root 可读），不进仓库，脚本也不会打印。首次设置（在 CT 102 上，输入时不回显）：
+
+  ```bash
+  install -d -m 700 /etc/duckdns
+  read -rs -p "DuckDNS token: " t && printf '%s' "$t" > /etc/duckdns/token && unset t && chmod 600 /etc/duckdns/token && echo
+  ```
+
+- 安装 timer：
+
+  ```bash
+  cp deploy/game-vote-duckdns.{service,timer} /etc/systemd/system/
+  systemctl daemon-reload && systemctl enable --now game-vote-duckdns.timer
+  ```
+
+- 查看：`systemctl list-timers game-vote-duckdns.timer`、`journalctl -u game-vote-duckdns -n 20`
+
 ## CT 101 的 Caddy 配置
 
 `/etc/caddy/Caddyfile` 的 `www.yuchaotao.com` 站点块中加入（与 `/sc2-card` 规则互不影响）：
