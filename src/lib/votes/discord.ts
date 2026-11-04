@@ -14,6 +14,7 @@ import {
   voteStepper,
 } from "./discord-render";
 import { resolvePrompt, type PromptChoice } from "./prompts";
+import { exposures } from "./gamble";
 import { resultsHidden } from "./rules";
 import { addVote, getRound, myVotes, peekers, removeVote, toggleVote, VoteError } from "./service";
 
@@ -59,6 +60,7 @@ async function roundView(roundId: string): Promise<RoundView | null> {
     // The channel sees what a member who hasn't peeked sees.
     hidden: resultsHidden(round, false),
     peekers: round.anonymous ? (await peekers(roundId)).map((p) => p.user.displayName) : [],
+    exposures: round.anonymous ? await exposures(roundId) : [],
   };
 }
 

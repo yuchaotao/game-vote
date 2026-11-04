@@ -73,6 +73,8 @@ export type RoundView = {
   /** Anonymous and not revealed yet: no counts or order (#51). */
   hidden?: boolean;
   peekers?: string[];
+  /** Caught 赌一把 / 偷梁换柱 attempts (#57). */
+  exposures?: string[];
 };
 
 export function renderRound(r: RoundView, mentionIds: string[] = []) {
@@ -104,6 +106,7 @@ export function renderRound(r: RoundView, mentionIds: string[] = []) {
     parts.push(r.winner ? `🏆 胜出：**${r.winner}**` : "没有人投票。");
   }
   if (r.peekers && r.peekers.length > 0) parts.push(`👀 偷看过：${r.peekers.join("、")}`);
+  if (r.exposures && r.exposures.length > 0) parts.push(r.exposures.join("\n"));
 
   const buttons: Button[] = r.open
     ? r.candidates.slice(0, MAX_VOTE_BUTTONS).map((c) => ({

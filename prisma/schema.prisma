@@ -53,6 +53,8 @@ model User {
 
   notificationPreferences NotificationPreference[]
   notifications           Notification[]
+  voteGambles             VoteGamble[]             @relation("GambleActor")
+  voteGambleTargets       VoteGamble[]             @relation("GambleTarget")
 }
 
 model Group {
@@ -88,6 +90,8 @@ model GroupMember {
 
   group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Lucky coin (#57): chance in percent of winning 赌一把 / 偷梁换柱 in this group.
+  luck  Int   @default(50)
 
   @@id([groupId, userId])
   @@index([userId])
@@ -415,6 +419,7 @@ model VoteRound {
   revealsSeen      VoteRevealSeen[]
   /// A member may put several of their votes on the same game (#53).
   repeatVotes      Boolean          @default(false)
+  gambles          VoteGamble[]
 
   @@unique([groupId, number])
   @@index([groupId, status])
@@ -456,6 +461,8 @@ enum VoteEventKind {
   RETRACT
   /// A candidate nobody voted for was taken off the list.
   REMOVED
+  /// 偷梁换柱 (#57) moved one of someone's votes.
+  SWAP
 }
 
 /// Append-only log of everything that happened in a round, for replay.
@@ -467,9 +474,12 @@ model VoteEvent {
   kind    VoteEventKind
   at      DateTime      @default(now())
 
-  round VoteRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
-  user  User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
-  game  Game      @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  round    VoteRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  user     User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  game     Game      @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  /// SWAP (#57): userId's vote on gameId was switched to toGameId by actorId.
+  toGameId String?
+  actorId  String?
 
   @@index([roundId, at])
 }
@@ -615,4 +625,35 @@ model VoteRevealSeen {
   user  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([roundId, userId])
+}
+
+enum VoteGambleKind {
+  /// 赌一把: a chance to see an anonymous round's results once.
+  PEEK
+  /// 偷梁换柱: a chance to switch one of someone's votes to your game.
+  SWAP
+}
+
+/// One 赌一把 / 偷梁换柱 attempt (#57); at most one of each per member per round.
+model VoteGamble {
+  id           String         @id @default(cuid())
+  roundId      String
+  userId       String
+  kind         VoteGambleKind
+  success      Boolean
+  /// The member's lucky coin when they tried.
+  luckBefore   Int
+  /// PEEK won: when the one look was used.
+  seenAt       DateTime?
+  /// SWAP: whose vote, from which game to which.
+  targetUserId String?
+  fromGameId   String?
+  toGameId     String?
+  at           DateTime       @default(now())
+
+  round  VoteRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  user   User      @relation("GambleActor", fields: [userId], references: [id], onDelete: Cascade)
+  target User?     @relation("GambleTarget", fields: [targetUserId], references: [id], onDelete: SetNull)
+
+  @@unique([roundId, userId, kind])
 }

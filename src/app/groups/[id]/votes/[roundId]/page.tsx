@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { PeekButton, RevealConfetti } from "@/components/anonymous";
+import { GambleActions, RevealConfetti } from "@/components/anonymous";
 import { AddGamePanel, GameCover, LocalDate } from "@/components/games";
 import { Card } from "@/components/ui";
 import {
@@ -14,6 +14,7 @@ import {
 import { requireUser } from "@/lib/auth/session";
 import { igdbEnabled, listLibrary } from "@/lib/games/service";
 import { getGroupForMember } from "@/lib/groups/service";
+import { exposures, myGambles, takePeek } from "@/lib/votes/gamble";
 import { endReasonText, resultsHidden } from "@/lib/votes/rules";
 import { firstRevealVisit, getRound, peekers, roundEvents } from "@/lib/votes/service";
 
@@ -37,7 +38,15 @@ export default async function RoundPage({
   const iPeeked = peeked.some((p) => p.userId === user.id);
   // Anonymous and still open: no counts, ranks or voters, and candidates in the
   // order they were added (the ranked order would give it away).
-  const hidden = resultsHidden(round, iPeeked);
+  const hiddenToMe = resultsHidden(round, iPeeked);
+  // A won 赌一把 shows the results on this one page load (#57).
+  const peekNow = hiddenToMe && (await takePeek(roundId, user.id));
+  const hidden = hiddenToMe && !peekNow;
+  const [gambles, exposed] = await Promise.all([
+    hidden ? myGambles(roundId, user.id) : { peek: true, swap: true },
+    round.anonymous ? exposures(roundId) : [],
+  ]);
+  const myLuck = group.members.find((m) => m.userId === user.id)?.luck ?? 50;
   // The reveal effect plays the first time each member opens the result.
   const celebrate = round.anonymous && !open && (await firstRevealVisit(roundId, user.id));
 
@@ -126,15 +135,31 @@ export default async function RoundPage({
             aria-label="匿名投票"
             className="space-y-2 rounded-lg bg-zinc-50 p-3 text-sm dark:bg-zinc-800/50"
           >
-            {hidden ? (
+            {peekNow ? (
+              <p>🎲 赌赢了！这些结果只显示这一次，刷新或离开后会重新隐藏，没人知道你看过。</p>
+            ) : hidden ? (
               <>
                 <p>🙈 揭榜前不显示票数和排名，到点自动揭晓。你投了哪些只有你自己看得到。</p>
-                <PeekButton groupId={id} roundId={roundId} />
+                <GambleActions
+                  groupId={id}
+                  roundId={roundId}
+                  luck={myLuck}
+                  peekUsed={gambles.peek}
+                  swapUsed={gambles.swap}
+                  hasVotes={Object.keys(myVotes).length > 0}
+                />
               </>
             ) : (
               <p>👀 你偷看了结果，群里的人都知道了。</p>
             )}
             {peekNames && <p className="text-xs text-zinc-500">👀 偷看过：{peekNames}</p>}
+            {exposed.length > 0 && (
+              <ul aria-label="被抓到的小动作" className="space-y-0.5 text-xs text-zinc-500">
+                {exposed.map((line, i) => (
+                  <li key={i}>{line}</li>
+                ))}
+              </ul>
+            )}
           </section>
         )}
 
@@ -177,6 +202,13 @@ export default async function RoundPage({
         )}
         {!open && peekNames && (
           <p className="text-xs text-zinc-500">👀 揭榜前偷看过：{peekNames}</p>
+        )}
+        {!open && exposed.length > 0 && (
+          <ul aria-label="被抓到的小动作" className="space-y-0.5 text-xs text-zinc-500">
+            {exposed.map((line, i) => (
+              <li key={i}>{line}</li>
+            ))}
+          </ul>
         )}
 
         <VoteBoard

@@ -477,6 +477,11 @@ function describe(e: ReplayEvent, users: Record<string, string>, games: Record<s
       return `${who} 取消了对《${game}》的投票`;
     case "REMOVED":
       return `${who} 移除了候选《${game}》`;
+    case "SWAP": {
+      const actor = (e.actorId && users[e.actorId]) || "某人";
+      const to = (e.toGameId && games[e.toGameId]) || "某个游戏";
+      return `😈 ${actor} 偷梁换柱：把 ${who} 的一票从《${game}》换成了《${to}》`;
+    }
   }
 }
 

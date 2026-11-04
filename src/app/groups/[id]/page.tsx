@@ -10,6 +10,7 @@ import {
 } from "@/components/groups";
 import { DiscordChannelForm } from "@/components/discord-channel";
 import { AutoRefresh, CheckInCard, PresenceBadge, TogetherList } from "@/components/play";
+import { LuckCoin } from "@/components/luck-coin";
 import { Avatar, Card } from "@/components/ui";
 import { requireUser } from "@/lib/auth/session";
 import { listLibrary } from "@/lib/games/service";
@@ -76,7 +77,7 @@ export default async function GroupMembersPage({ params }: { params: Promise<{ i
           成员 <span className="text-sm text-zinc-500">({group.members.length})</span>
         </h2>
         <ul className="divide-y divide-zinc-200 dark:divide-zinc-800" aria-label="成员列表">
-          {group.members.map(({ user: m, joinedAt }) => {
+          {group.members.map(({ user: m, joinedAt, luck }) => {
             const isOwner = m.id === group.ownerId;
             return (
               <li key={m.id} className="flex items-center justify-between gap-3 py-3">
@@ -85,6 +86,7 @@ export default async function GroupMembersPage({ params }: { params: Promise<{ i
                   <div className="min-w-0">
                     <p className="flex items-center gap-2 truncate font-medium">
                       {m.displayName}
+                      <LuckCoin luck={luck} showValue />
                       {isOwner && (
                         <span className="rounded bg-amber-100 px-1.5 text-xs text-amber-800 dark:bg-amber-900 dark:text-amber-200">
                           群主
