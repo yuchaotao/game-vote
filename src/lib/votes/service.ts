@@ -137,7 +137,7 @@ export async function notifyMembers(
   await notifyGroup(event, groupId, exceptUserId, content);
 }
 
-async function openRound(groupId: string, roundId: string) {
+export async function openRound(groupId: string, roundId: string) {
   const round = await db.voteRound.findFirst({ where: { id: roundId, groupId } });
   if (!round) throw new VoteError("投票不存在");
   if (round.status !== VoteRoundStatus.OPEN) throw new VoteError("这轮投票已经结束了");
@@ -473,24 +473,7 @@ export function recentVotes(groupId: string, since: Date) {
   });
 }
 
-/** Looks at an anonymous round's results early; everyone can see who did (#51). */
-export async function peekRound(groupId: string, roundId: string, userId: string) {
-  const round = await openRound(groupId, roundId);
-  if (!round.anonymous) throw new VoteError("这轮投票不是匿名的");
-  const { count } = await db.votePeek.createMany({
-    data: [{ roundId, userId }],
-    skipDuplicates: true,
-  });
-  if (count === 0) return;
-  await postSystemMessage(
-    groupId,
-    `👀 ${await nameOf(userId)} 偷看了${roundLabel(round)}的投票结果`,
-    [userId],
-  );
-  await notifyChanged(groupId, roundId);
-}
-
-/** Who peeked at an anonymous round, first first. */
+/** Who peeked at an anonymous round (before 赌一把 replaced peeking), first first. */
 export function peekers(roundId: string) {
   return db.votePeek.findMany({
     where: { roundId },

@@ -74,3 +74,30 @@
     animation: none;
   }
 }
+
+/* Lucky coin (#57): the best coins sparkle; the rainbow one turns slowly. */
+@keyframes luck-coin-twinkle {
+  50% {
+    opacity: 0.25;
+    transform: scale(0.6);
+  }
+}
+@keyframes luck-coin-turn {
+  to {
+    transform: rotateY(360deg);
+  }
+}
+.luck-coin-sparkle {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: luck-coin-twinkle 1.6s ease-in-out infinite;
+}
+.luck-coin-spin {
+  animation: luck-coin-turn 4s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .luck-coin-sparkle,
+  .luck-coin-spin {
+    animation: none;
+  }
+}

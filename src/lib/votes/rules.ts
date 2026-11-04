@@ -106,12 +106,15 @@ export function winnerOf(list: Standing[]): string | null {
   return list[0] && list[0].votes > 0 ? list[0].gameId : null;
 }
 
-export type VoteEventKind = "CANDIDATE" | "CAST" | "RETRACT" | "REMOVED";
+export type VoteEventKind = "CANDIDATE" | "CAST" | "RETRACT" | "REMOVED" | "SWAP";
 export type ReplayEvent = {
   userId: string | null;
   gameId: string;
   kind: VoteEventKind;
   at: Date | string;
+  /** SWAP: the vote moved to this game, switched by actorId. */
+  toGameId?: string | null;
+  actorId?: string | null;
 };
 
 export type ReplayFrame = {
@@ -140,6 +143,13 @@ export function replayFrames(events: ReplayEvent[]): ReplayFrame[] {
     } else if (e.kind === "CAST" && e.userId) {
       const count = (ballots.get(key)?.count ?? 0) + 1;
       ballots.set(key, { userId: e.userId, gameId: e.gameId, count });
+    } else if (e.kind === "SWAP" && e.userId && e.toGameId) {
+      const left = (ballots.get(key)?.count ?? 1) - 1;
+      if (left > 0) ballots.set(key, { ...ballots.get(key)!, count: left });
+      else ballots.delete(key);
+      const to = `${e.userId}|${e.toGameId}`;
+      const count = (ballots.get(to)?.count ?? 0) + 1;
+      ballots.set(to, { userId: e.userId, gameId: e.toGameId, count });
     } else {
       const left = (ballots.get(key)?.count ?? 1) - 1;
       if (left > 0) ballots.set(key, { ...ballots.get(key)!, count: left });

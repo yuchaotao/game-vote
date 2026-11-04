@@ -17,13 +17,13 @@ import {
 import { manualGameSchema } from "@/lib/games/rules";
 import { isActiveMember } from "@/lib/groups/service";
 import { resolvePrompt, type PromptChoice } from "./prompts";
+import { gamblePeek, gambleSwap } from "./gamble";
 import { roundSettingsSchema } from "./rules";
 import {
   addCandidate,
   addVote,
   endAndStartNext,
   endRound,
-  peekRound,
   removeCandidate,
   removeVote,
   startRound,
@@ -206,11 +206,26 @@ export async function resolvePromptAction(
   return { ok: choice === "continue" ? "已继续当前投票" : "投票已结束" };
 }
 
-export async function peekAction(groupId: string, roundId: string): Promise<FormState> {
-  return asMember(groupId, async (userId) => {
-    await peekRound(groupId, roundId, userId);
+export async function gamblePeekAction(groupId: string, roundId: string): Promise<FormState> {
+  let won = false;
+  const result = await asMember(groupId, async (userId) => {
+    won = await gamblePeek(groupId, roundId, userId);
     refresh(groupId);
   });
+  if (result?.error) return result;
+  return won ? { ok: "🎲 赌赢了！" } : { error: "🎲 赌输了……大家都知道你想偷看了。" };
+}
+
+export async function gambleSwapAction(groupId: string, roundId: string): Promise<FormState> {
+  let outcome = { won: false, toGame: "" };
+  const result = await asMember(groupId, async (userId) => {
+    outcome = await gambleSwap(groupId, roundId, userId);
+    refresh(groupId);
+  });
+  if (result?.error) return result;
+  return outcome.won
+    ? { ok: `😈 偷梁换柱成功！你悄悄把一张别人的票换成了《${outcome.toGame}》。` }
+    : { error: "😈 失手了，被大家抓了个正着。" };
 }
 
 /** Repeat-vote rounds (#53): one more vote, or one back, for a game. */
