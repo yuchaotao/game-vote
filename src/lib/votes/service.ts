@@ -461,7 +461,16 @@ export function roundEvents(roundId: string) {
   return db.voteEvent.findMany({
     where: { roundId },
     orderBy: { at: "asc" },
-    select: { kind: true, userId: true, gameId: true, at: true, game: { select: { name: true } } },
+    select: {
+      kind: true,
+      userId: true,
+      gameId: true,
+      // SWAP (#57): where the vote went and who switched it.
+      toGameId: true,
+      actorId: true,
+      at: true,
+      game: { select: { name: true } },
+    },
   });
 }
 
