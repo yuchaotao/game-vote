@@ -43,7 +43,7 @@ export default async function RoundPage({
   const peekNow = hiddenToMe && (await takePeek(roundId, user.id));
   const hidden = hiddenToMe && !peekNow;
   const [gambles, exposed] = await Promise.all([
-    hidden ? myGambles(roundId, user.id) : { peek: true, swap: true },
+    hidden ? myGambles(roundId, user.id) : { peek: 0, swap: 0 },
     round.anonymous ? exposures(roundId) : [],
   ]);
   const myLuck = group.members.find((m) => m.userId === user.id)?.luck ?? 50;
@@ -144,8 +144,9 @@ export default async function RoundPage({
                   groupId={id}
                   roundId={roundId}
                   luck={myLuck}
-                  peekUsed={gambles.peek}
-                  swapUsed={gambles.swap}
+                  limit={round.gambleLimit}
+                  peekLeft={round.gambleLimit - gambles.peek}
+                  swapLeft={round.gambleLimit - gambles.swap}
                   hasVotes={Object.keys(myVotes).length > 0}
                 />
               </>

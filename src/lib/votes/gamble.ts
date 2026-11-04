@@ -5,34 +5,44 @@ import { db } from "@/lib/db";
 import { nextLuck, swapOptions, wins } from "./gamble-rules";
 import { notifyChanged, openRound, VoteError } from "./service";
 
-// 赌一把 and 偷梁换柱 (#57): once each per member per anonymous round, won with the
-// member's lucky coin; losing is announced to the group.
+// 赌一把 and 偷梁换柱 (#57): a few attempts each per member per anonymous round
+// (the round's gambleLimit, #59), won with the member's lucky coin; losing is
+// announced to the group.
 
 async function nameOf(userId: string): Promise<string> {
   const u = await db.user.findUnique({ where: { id: userId }, select: { displayName: true } });
   return u?.displayName ?? "某人";
 }
 
-const USED: Record<VoteGambleKind, string> = {
-  PEEK: "这一轮你已经赌过一把了",
-  SWAP: "这一轮你已经用过偷梁换柱了",
-};
+const NAME: Record<VoteGambleKind, string> = { PEEK: "赌一把", SWAP: "偷梁换柱" };
 
-const isUnique = (err: unknown) =>
-  err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";
-
-async function begin(groupId: string, roundId: string, userId: string, kind: VoteGambleKind) {
+async function begin(groupId: string, roundId: string) {
   const round = await openRound(groupId, roundId);
   if (!round.anonymous) throw new VoteError("只有匿名投票里才能这样做");
-  const used = await db.voteGamble.findUnique({
-    where: { roundId_userId_kind: { roundId, userId, kind } },
-  });
-  if (used) throw new VoteError(USED[kind]);
-  const { luck } = await db.groupMember.findUniqueOrThrow({
-    where: { groupId_userId: { groupId, userId } },
+  return round;
+}
+
+/**
+ * Inside a transaction: locks the round, checks this member has attempts left
+ * and returns their luck (read under the lock, so quick double clicks can't
+ * both use the last attempt or the same luck).
+ */
+async function claim(
+  tx: Prisma.TransactionClient,
+  round: { id: string; groupId: string; gambleLimit: number },
+  userId: string,
+  kind: VoteGambleKind,
+) {
+  await tx.$queryRaw`SELECT id FROM "VoteRound" WHERE id = ${round.id} FOR UPDATE`;
+  const used = await tx.voteGamble.count({ where: { roundId: round.id, userId, kind } });
+  if (used >= round.gambleLimit) {
+    throw new VoteError(`这一轮的 ${round.gambleLimit} 次${NAME[kind]}已经用完了`);
+  }
+  const { luck } = await tx.groupMember.findUniqueOrThrow({
+    where: { groupId_userId: { groupId: round.groupId, userId } },
     select: { luck: true },
   });
-  return { round, luck };
+  return luck;
 }
 
 /**
@@ -40,22 +50,19 @@ async function begin(groupId: string, roundId: string, userId: string, kind: Vot
  * nobody knows); lose, and the group sees that you tried.
  */
 export async function gamblePeek(groupId: string, roundId: string, userId: string) {
-  const { round, luck } = await begin(groupId, roundId, userId, "PEEK");
-  const won = wins(luck, randomInt(100));
-  try {
-    await db.$transaction([
-      db.voteGamble.create({
-        data: { roundId, userId, kind: "PEEK", success: won, luckBefore: luck },
-      }),
-      db.groupMember.update({
-        where: { groupId_userId: { groupId, userId } },
-        data: { luck: nextLuck(luck, won) },
-      }),
-    ]);
-  } catch (err) {
-    if (isUnique(err)) throw new VoteError(USED.PEEK);
-    throw err;
-  }
+  const round = await begin(groupId, roundId);
+  const won = await db.$transaction(async (tx) => {
+    const luck = await claim(tx, round, userId, "PEEK");
+    const won = wins(luck, randomInt(100));
+    await tx.voteGamble.create({
+      data: { roundId, userId, kind: "PEEK", success: won, luckBefore: luck },
+    });
+    await tx.groupMember.update({
+      where: { groupId_userId: { groupId, userId } },
+      data: { luck: nextLuck(luck, won) },
+    });
+    return won;
+  });
   if (!won) {
     await postSystemMessage(
       groupId,
@@ -82,72 +89,64 @@ export async function takePeek(roundId: string, userId: string): Promise<boolean
  * whose vote you tried to change.
  */
 export async function gambleSwap(groupId: string, roundId: string, userId: string) {
-  const { round, luck } = await begin(groupId, roundId, userId, "SWAP");
-  let outcome;
-  try {
-    outcome = await db.$transaction(async (tx) => {
-      // Same lock as voting, so ballots can't change underneath.
-      await tx.$queryRaw`SELECT id FROM "VoteRound" WHERE id = ${roundId} FOR UPDATE`;
-      const ballots = await tx.voteBallot.findMany({
-        where: { roundId },
-        select: { userId: true, gameId: true, count: true },
+  const round = await begin(groupId, roundId);
+  const outcome = await db.$transaction(async (tx) => {
+    // Same lock as voting, so ballots can't change underneath.
+    const luck = await claim(tx, round, userId, "SWAP");
+    const ballots = await tx.voteBallot.findMany({
+      where: { roundId },
+      select: { userId: true, gameId: true, count: true },
+    });
+    const options = swapOptions(userId, ballots, round.repeatVotes);
+    if (options.length === 0) {
+      throw new VoteError("现在没有可以换的票：你得先投票，别人也得投了其他游戏");
+    }
+    const pick = options[randomInt(options.length)];
+    const won = wins(luck, randomInt(100));
+    await tx.voteGamble.create({
+      data: {
+        roundId,
+        userId,
+        kind: "SWAP",
+        success: won,
+        luckBefore: luck,
+        targetUserId: pick.victimId,
+        fromGameId: pick.fromGameId,
+        toGameId: pick.toGameId,
+      },
+    });
+    await tx.groupMember.update({
+      where: { groupId_userId: { groupId, userId } },
+      data: { luck: nextLuck(luck, won) },
+    });
+    if (won) {
+      const from = ballots.find((b) => b.userId === pick.victimId && b.gameId === pick.fromGameId)!;
+      const where = {
+        roundId_userId_gameId: { roundId, userId: pick.victimId, gameId: pick.fromGameId },
+      };
+      if (from.count === 1) await tx.voteBallot.delete({ where });
+      else await tx.voteBallot.update({ where, data: { count: { decrement: 1 } } });
+      await tx.voteBallot.upsert({
+        where: {
+          roundId_userId_gameId: { roundId, userId: pick.victimId, gameId: pick.toGameId },
+        },
+        create: { roundId, userId: pick.victimId, gameId: pick.toGameId },
+        update: { count: { increment: 1 } },
       });
-      const options = swapOptions(userId, ballots, round.repeatVotes);
-      if (options.length === 0) {
-        throw new VoteError("现在没有可以换的票：你得先投票，别人也得投了其他游戏");
-      }
-      const pick = options[randomInt(options.length)];
-      const won = wins(luck, randomInt(100));
-      await tx.voteGamble.create({
+      // Shown in the replay after the reveal.
+      await tx.voteEvent.create({
         data: {
           roundId,
-          userId,
-          kind: "SWAP",
-          success: won,
-          luckBefore: luck,
-          targetUserId: pick.victimId,
-          fromGameId: pick.fromGameId,
+          userId: pick.victimId,
+          gameId: pick.fromGameId,
           toGameId: pick.toGameId,
+          actorId: userId,
+          kind: "SWAP",
         },
       });
-      await tx.groupMember.update({
-        where: { groupId_userId: { groupId, userId } },
-        data: { luck: nextLuck(luck, won) },
-      });
-      if (won) {
-        const from = ballots.find(
-          (b) => b.userId === pick.victimId && b.gameId === pick.fromGameId,
-        )!;
-        const where = {
-          roundId_userId_gameId: { roundId, userId: pick.victimId, gameId: pick.fromGameId },
-        };
-        if (from.count === 1) await tx.voteBallot.delete({ where });
-        else await tx.voteBallot.update({ where, data: { count: { decrement: 1 } } });
-        await tx.voteBallot.upsert({
-          where: {
-            roundId_userId_gameId: { roundId, userId: pick.victimId, gameId: pick.toGameId },
-          },
-          create: { roundId, userId: pick.victimId, gameId: pick.toGameId },
-          update: { count: { increment: 1 } },
-        });
-        // Shown in the replay after the reveal.
-        await tx.voteEvent.create({
-          data: {
-            roundId,
-            userId: pick.victimId,
-            gameId: pick.fromGameId,
-            toGameId: pick.toGameId,
-            actorId: userId,
-            kind: "SWAP",
-          },
-        });
-      }
-      return { won, pick };
-    });
-  } catch (err) {
-    if (isUnique(err)) throw new VoteError(USED.SWAP);
-    throw err;
-  }
+    }
+    return { won, pick };
+  });
   if (!outcome.won) {
     await postSystemMessage(
       groupId,
@@ -163,13 +162,15 @@ export async function gambleSwap(groupId: string, roundId: string, userId: strin
   return { won: outcome.won, toGame: game?.name ?? "你的游戏" };
 }
 
-/** This member's attempts in the round (each kind at most once). */
+/** How many of each this member has used in the round. */
 export async function myGambles(roundId: string, userId: string) {
-  const rows = await db.voteGamble.findMany({
+  const rows = await db.voteGamble.groupBy({
+    by: ["kind"],
     where: { roundId, userId },
-    select: { kind: true },
+    _count: true,
   });
-  return { peek: rows.some((r) => r.kind === "PEEK"), swap: rows.some((r) => r.kind === "SWAP") };
+  const used = (kind: VoteGambleKind) => rows.find((r) => r.kind === kind)?._count ?? 0;
+  return { peek: used("PEEK"), swap: used("SWAP") };
 }
 
 /** Failed attempts, which everyone may see. */

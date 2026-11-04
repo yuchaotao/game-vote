@@ -420,6 +420,8 @@ model VoteRound {
   /// A member may put several of their votes on the same game (#53).
   repeatVotes      Boolean          @default(false)
   gambles          VoteGamble[]
+  /// 赌一把 / 偷梁换柱 attempts per member per round, each (#59).
+  gambleLimit      Int              @default(5)
 
   @@unique([groupId, number])
   @@index([groupId, status])
@@ -634,7 +636,7 @@ enum VoteGambleKind {
   SWAP
 }
 
-/// One 赌一把 / 偷梁换柱 attempt (#57); at most one of each per member per round.
+/// One 赌一把 / 偷梁换柱 attempt (#57); up to the round's gambleLimit of each per member.
 model VoteGamble {
   id           String         @id @default(cuid())
   roundId      String
@@ -655,5 +657,5 @@ model VoteGamble {
   user   User      @relation("GambleActor", fields: [userId], references: [id], onDelete: Cascade)
   target User?     @relation("GambleTarget", fields: [targetUserId], references: [id], onDelete: SetNull)
 
-  @@unique([roundId, userId, kind])
+  @@index([roundId, userId, kind])
 }

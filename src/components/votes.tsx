@@ -108,10 +108,31 @@ function toLocalInput(d: Date) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export function StartRoundForm({ groupId }: { groupId: string }) {
+/** The settings of the group's previous round, for "使用上一次的设置". */
+export type LastSettings = {
+  number: number;
+  anonymous: boolean;
+  repeatVotes: boolean;
+  maxVotes: number;
+  gambleLimit: number;
+  /** ISO time, or null without a deadline. */
+  deadline: string | null;
+};
+
+/** The same weekday and time as `iso`, the next time it comes round. */
+function sameTimeNextWeek(iso: string) {
+  let t = new Date(iso).getTime();
+  const soon = Date.now() + 60_000;
+  while (t <= soon) t += 7 * 24 * 60 * 60_000;
+  return new Date(t);
+}
+
+export function StartRoundForm({ groupId, last }: { groupId: string; last?: LastSettings | null }) {
   const [state, action, pending] = useActionState(startRoundAction.bind(null, groupId), undefined);
   const [anonymous, setAnonymous] = useState(true);
   const [repeat, setRepeat] = useState(true);
+  const [maxVotes, setMaxVotes] = useState("2");
+  const [gambleLimit, setGambleLimit] = useState("5");
   const [local, setLocal] = useState("");
   // Anonymous rounds reveal (and end) on Friday 12:00 Beijing time by default.
   // Filled in after mount: it depends on the viewer's clock and time zone.
@@ -120,9 +141,31 @@ export function StartRoundForm({ groupId }: { groupId: string }) {
   }, [anonymous]);
   // datetime-local is the viewer's local time; send an absolute ISO time.
   const iso = local ? new Date(local).toISOString() : "";
+
+  const applyLast = () => {
+    if (!last) return;
+    setAnonymous(last.anonymous);
+    setRepeat(last.repeatVotes);
+    setMaxVotes(String(last.maxVotes));
+    setGambleLimit(String(last.gambleLimit));
+    // A weekly rhythm: same weekday and time as last time.
+    setLocal(
+      last.deadline
+        ? toLocalInput(sameTimeNextWeek(last.deadline))
+        : last.anonymous
+          ? toLocalInput(nextReveal())
+          : "",
+    );
+  };
+
   return (
     <form action={action} className="space-y-3">
       <Status state={state} />
+      {last && (
+        <Button type="button" variant="secondary" className="px-3 py-1.5" onClick={applyLast}>
+          ↺ 使用上一次的设置（第 {last.number} 轮）
+        </Button>
+      )}
       <Field
         label="标题"
         name="title"
@@ -144,7 +187,7 @@ export function StartRoundForm({ groupId }: { groupId: string }) {
         <span>
           <span className="font-medium">匿名投票</span>
           <span className="block text-xs text-zinc-500">
-            揭榜前不显示票数和排名；想提前看可以「偷看」，但大家都会知道。
+            揭榜前不显示票数和排名；想提前看可以「赌一把」，还能「偷梁换柱」。
           </span>
         </span>
       </label>
@@ -168,7 +211,8 @@ export function StartRoundForm({ groupId }: { groupId: string }) {
           type="number"
           min={1}
           max={10}
-          defaultValue={2}
+          value={maxVotes}
+          onChange={(e) => setMaxVotes(e.target.value)}
           hint={repeat ? "可以集中投给一个游戏" : "每个游戏最多投 1 票"}
         />
         <div>
@@ -182,6 +226,18 @@ export function StartRoundForm({ groupId }: { groupId: string }) {
           />
           <input type="hidden" name="deadline" value={iso} />
         </div>
+        {anonymous && (
+          <Field
+            label="每轮可赌次数"
+            name="gambleLimit"
+            type="number"
+            min={1}
+            max={20}
+            value={gambleLimit}
+            onChange={(e) => setGambleLimit(e.target.value)}
+            hint="赌一把、偷梁换柱各这么多次"
+          />
+        )}
       </div>
       <Button disabled={pending}>发起投票</Button>
     </form>

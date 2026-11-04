@@ -38,8 +38,10 @@ test("gamble to peek once, switch a vote, get caught, and watch the coin change"
       .click();
     await expect(mainStatus(owner.page)).toBeVisible();
   }
-  // Anonymous (default), repeats allowed (default), 2 votes each.
+  // Anonymous (default), repeats allowed (default), 2 votes each; 2 attempts of each.
   await owner.page.goto(`${path}/votes`);
+  await expect(owner.page.getByLabel("每轮可赌次数")).toHaveValue("5");
+  await owner.page.getByLabel("每轮可赌次数").fill("2");
   await owner.page.getByRole("button", { name: "发起投票" }).click();
   await expect(owner.page).toHaveURL(/\/votes\/\w+$/, { timeout: 30_000 });
   const roundUrl = owner.page.url();
@@ -71,13 +73,18 @@ test("gamble to peek once, switch a vote, get caught, and watch the coin change"
   owner.page.once("dialog", (d) => d.accept());
   await owner.page.getByRole("button", { name: "🎲 赌一把" }).click();
   await expect(owner.page.getByText("赌输了")).toBeVisible();
-  await expect(owner.page.getByRole("button", { name: "🎲 这轮已赌过" })).toBeDisabled();
+  await expect(owner.page.getByRole("button", { name: "🎲 赌一把 · 剩 1 次" })).toBeEnabled();
   await expect(board(owner.page)).not.toContainText("2 票");
   expect(await luckOf(o.id)).toBe(10); // never below 10%
+  // A second try uses up the round's 2 attempts.
+  await setLuck(o.id, 0);
+  owner.page.once("dialog", (d) => d.accept());
+  await owner.page.getByRole("button", { name: "🎲 赌一把 · 剩 1 次" }).click();
+  await expect(owner.page.getByRole("button", { name: "🎲 次数已用完" })).toBeDisabled();
   await friend.page.goto(`${path}/chat`);
   await expect(
     friend.page.getByText(`${o.displayName} 想偷看第 1 轮投票的结果，赌输了！`),
-  ).toBeVisible();
+  ).toHaveCount(2);
 
   // The friend's 赌一把 wins: the results show this once, then hide again.
   await setLuck(f.id, 100);
@@ -91,7 +98,7 @@ test("gamble to peek once, switch a vote, get caught, and watch the coin change"
   await expect(board(friend.page)).toContainText("2 票");
   await friend.page.reload();
   await expect(board(friend.page)).not.toContainText("2 票");
-  await expect(friend.page.getByRole("button", { name: "🎲 这轮已赌过" })).toBeDisabled();
+  await expect(friend.page.getByRole("button", { name: "🎲 赌一把 · 剩 1 次" })).toBeEnabled();
   expect(await luckOf(f.id)).toBe(90); // capped
 
   // The friend's 偷梁换柱 wins: the owner's vote for 博德之门3 becomes Apex, quietly.
@@ -138,4 +145,45 @@ test("gamble to peek once, switch a vote, get caught, and watch the coin change"
   await expect(
     friend.page.getByText(/偷梁换柱：把 .+ 的一票从《博德之门3》换成了《Apex Legends™》/),
   ).toBeVisible();
+});
+
+test("start a round with the last round's settings", async ({ browser }) => {
+  const { owner, path } = await groupOfTwo(browser);
+  const page = owner.page;
+  const roundOf = (url: string) =>
+    db.voteRound.findUniqueOrThrow({ where: { id: url.split("/").pop()! } });
+
+  // Round 1: anonymous (default), one vote per game, 4 votes, 3 attempts.
+  await page.goto(`${path}/votes`);
+  await page.getByLabel("同一个游戏可以投多票").uncheck();
+  await page.getByLabel("每人票数").fill("4");
+  await page.getByLabel("每轮可赌次数").fill("3");
+  await page.getByRole("button", { name: "发起投票" }).click();
+  await expect(page).toHaveURL(/\/votes\/\w+$/, { timeout: 30_000 });
+  const first = await roundOf(page.url());
+  page.once("dialog", (d) => d.accept());
+  await page.getByRole("button", { name: "仅结束投票" }).click();
+  await expect(page.getByText("已揭榜")).toBeVisible();
+
+  // The next form starts from the defaults, and one click brings back round 1's.
+  await page.goto(`${path}/votes`);
+  await expect(page.getByLabel("每人票数")).toHaveValue("2");
+  await page.getByRole("button", { name: "使用上一次的设置（第 1 轮）" }).click();
+  await expect(page.getByLabel("匿名投票")).toBeChecked();
+  await expect(page.getByLabel("同一个游戏可以投多票")).not.toBeChecked();
+  await expect(page.getByLabel("每人票数")).toHaveValue("4");
+  await expect(page.getByLabel("每轮可赌次数")).toHaveValue("3");
+  await page.getByRole("button", { name: "发起投票" }).click();
+  await expect(page).toHaveURL(/\/votes\/\w+$/, { timeout: 30_000 });
+
+  const second = await roundOf(page.url());
+  expect([second.anonymous, second.repeatVotes, second.maxVotes, second.gambleLimit]).toEqual([
+    true,
+    false,
+    4,
+    3,
+  ]);
+  // The reveal keeps its weekday and time.
+  const week = 7 * 24 * 60 * 60_000;
+  expect((second.deadline!.getTime() - first.deadline!.getTime()) % week).toBe(0);
 });
