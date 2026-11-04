@@ -49,7 +49,9 @@ test("gamble to peek once, switch a vote, get caught, and watch the coin change"
     await expect(board(owner.page).getByRole("listitem")).toHaveCount(i + 1);
   }
 
-  // Owner: one vote for 博德之门3. Friend: one each for Apex and 博德之门3.
+  // Owner: one vote for 博德之门3. Friend: one each for Apex and 博德之门3. So 博德之门3
+  // has 2 votes in all, while nobody has 2 of their own on a game: "2 票" on the
+  // board means totals are showing (your own stepper counts always are).
   await owner.page.getByRole("button", { name: "加一票 博德之门3" }).click();
   await expect(owner.page.getByText("你还剩 1 / 2 票")).toBeVisible();
   await friend.page.goto(roundUrl);
@@ -70,7 +72,7 @@ test("gamble to peek once, switch a vote, get caught, and watch the coin change"
   await owner.page.getByRole("button", { name: "🎲 赌一把" }).click();
   await expect(owner.page.getByText("赌输了")).toBeVisible();
   await expect(owner.page.getByRole("button", { name: "🎲 这轮已赌过" })).toBeDisabled();
-  await expect(board(owner.page)).not.toContainText(/\d+ 票/);
+  await expect(board(owner.page)).not.toContainText("2 票");
   expect(await luckOf(o.id)).toBe(10); // never below 10%
   await friend.page.goto(`${path}/chat`);
   await expect(
@@ -88,7 +90,7 @@ test("gamble to peek once, switch a vote, get caught, and watch the coin change"
   await expect(friend.page.getByText("赌赢了！这些结果只显示这一次")).toBeVisible();
   await expect(board(friend.page)).toContainText("2 票");
   await friend.page.reload();
-  await expect(board(friend.page)).not.toContainText(/\d+ 票/);
+  await expect(board(friend.page)).not.toContainText("2 票");
   await expect(friend.page.getByRole("button", { name: "🎲 这轮已赌过" })).toBeDisabled();
   expect(await luckOf(f.id)).toBe(90); // capped
 
