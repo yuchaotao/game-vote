@@ -88,6 +88,7 @@ export async function startRound(
           deadline: settings.deadline,
           anonymous: settings.anonymous,
           repeatVotes: settings.repeatVotes,
+          gambleLimit: settings.gambleLimit,
           startedById: userId,
           previousId: carryFrom ?? null,
         },
@@ -232,6 +233,7 @@ export async function endAndStartNext(
       deadline: ended.anonymous ? nextReveal() : null,
       anonymous: ended.anonymous,
       repeatVotes: ended.repeatVotes,
+      gambleLimit: ended.gambleLimit,
     },
     roundId,
   );

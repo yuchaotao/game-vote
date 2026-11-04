@@ -40,7 +40,19 @@ export default async function GroupVotesPage({ params }: { params: Promise<{ id:
         <Card className="space-y-3">
           <h2 className="text-lg font-semibold">发起投票</h2>
           <p className="text-sm text-zinc-500">决定下一次玩什么。发起后群里每个人都会看到。</p>
-          <StartRoundForm groupId={id} />
+          <StartRoundForm
+            groupId={id}
+            last={
+              rounds[0] && {
+                number: rounds[0].number,
+                anonymous: rounds[0].anonymous,
+                repeatVotes: rounds[0].repeatVotes,
+                maxVotes: rounds[0].maxVotes,
+                gambleLimit: rounds[0].gambleLimit,
+                deadline: rounds[0].deadline?.toISOString() ?? null,
+              }
+            }
+          />
         </Card>
       )}
 

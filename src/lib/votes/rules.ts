@@ -3,6 +3,7 @@ import { z } from "zod";
 // Pure voting logic: round settings, tallies, ranking and replay frames.
 
 export const DEFAULT_MAX_VOTES = 2;
+export const DEFAULT_GAMBLE_LIMIT = 5;
 export const MAX_TITLE = 60;
 
 export const roundSettingsSchema = z
@@ -34,6 +35,16 @@ export const roundSettingsSchema = z
     /** Checkboxes: "on" when ticked. */
     anonymous: z.preprocess((v) => v === true || v === "on" || v === "true", z.boolean()),
     repeatVotes: z.preprocess((v) => v === true || v === "on" || v === "true", z.boolean()),
+    /** 赌一把 / 偷梁换柱 attempts per member per round, each; empty means the default. */
+    gambleLimit: z.preprocess(
+      (v) => (v === "" || v === null ? undefined : v),
+      z.coerce
+        .number()
+        .int()
+        .min(1, "每轮至少可以赌 1 次")
+        .max(20, "每轮最多 20 次")
+        .default(DEFAULT_GAMBLE_LIMIT),
+    ),
   })
   .superRefine((s, ctx) => {
     if (s.anonymous && !s.deadline) {

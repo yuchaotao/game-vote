@@ -129,6 +129,7 @@ describe("round settings", () => {
       deadline: null,
       anonymous: false,
       repeatVotes: false,
+      gambleLimit: 5,
     });
     const r = roundSettingsSchema.parse({
       title: "",
