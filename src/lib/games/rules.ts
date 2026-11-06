@@ -61,9 +61,9 @@ export function canManageGroupGame(
 }
 
 /** Formats a price in the currency's smallest unit, e.g. 2999 USD → "US$29.99". */
-export function formatPrice(amount: number, currency: string): string {
+export function formatPrice(amount: number, currency: string, locale = "zh-CN"): string {
   try {
-    return new Intl.NumberFormat("zh-CN", { style: "currency", currency }).format(amount / 100);
+    return new Intl.NumberFormat(locale, { style: "currency", currency }).format(amount / 100);
   } catch {
     return `${(amount / 100).toFixed(2)} ${currency}`;
   }

@@ -4,8 +4,12 @@ import { requireUser } from "@/lib/auth/session";
 import { igdbEnabled, listLibrary } from "@/lib/games/service";
 import { isActiveMember } from "@/lib/groups/service";
 import { libraryHotness } from "@/lib/play/service";
+import { getT } from "@/lib/i18n/server";
 
-export const metadata = { title: "游戏库 · Game Vote" };
+export async function generateMetadata() {
+  const t = await getT();
+  return { title: `${t("游戏库")} · Game Vote` };
+}
 
 export default async function GroupGamesPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

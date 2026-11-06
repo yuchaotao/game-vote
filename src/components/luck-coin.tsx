@@ -1,3 +1,6 @@
+"use client";
+
+import { useT } from "./i18n";
 import { COIN_LABEL, coinTier, type CoinTier } from "@/lib/votes/gamble-rules";
 
 // A member's lucky coin (#57): the metal improves as their luck climbs.
@@ -21,10 +24,11 @@ export function LuckCoin({
   /** Also print the percentage next to the coin. */
   showValue?: boolean;
 }) {
+  const t = useT();
   const tier = coinTier(luck);
   const m = METAL[tier];
   const id = `coin-${tier}`;
-  const label = `幸运硬币：${COIN_LABEL[tier]} ${luck}%`;
+  const label = t("幸运硬币：{coin} {luck}%", { coin: t(COIN_LABEL[tier]), luck });
   return (
     <span className="inline-flex items-center gap-1 align-middle" title={label}>
       <svg

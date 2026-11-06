@@ -7,10 +7,15 @@ import { requireUser } from "@/lib/auth/session";
 import { isActiveMember } from "@/lib/groups/service";
 import { END_REASON_TEXT } from "@/lib/votes/rules";
 import { listRounds } from "@/lib/votes/service";
+import { getT } from "@/lib/i18n/server";
 
-export const metadata = { title: "投票 · Game Vote" };
+export async function generateMetadata() {
+  const t = await getT();
+  return { title: `${t("投票")} · Game Vote` };
+}
 
 export default async function GroupVotesPage({ params }: { params: Promise<{ id: string }> }) {
+  const t = await getT();
   const { id } = await params;
   const user = await requireUser();
   if (!(await isActiveMember(id, user.id))) notFound();
@@ -22,24 +27,30 @@ export default async function GroupVotesPage({ params }: { params: Promise<{ id:
     <div className="space-y-6">
       {open ? (
         <Card className="space-y-2">
-          <h2 className="text-lg font-semibold">进行中的投票</h2>
+          <h2 className="text-lg font-semibold">{t("进行中的投票")}</h2>
           <Link
             href={`/groups/${id}/votes/${open.id}`}
             className="flex items-center justify-between gap-3 rounded-lg border border-indigo-300 bg-indigo-50 p-3 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950 dark:hover:bg-indigo-900"
           >
             <span className="font-medium">
-              第 {open.number} 轮{open.title && `《${open.title}》`}
+              {open.title
+                ? t("第 {n} 轮《{title}》", { n: open.number, title: open.title })
+                : t("第 {n} 轮", { n: open.number })}
             </span>
             <span className="text-sm text-zinc-600 dark:text-zinc-400">
-              {open._count.candidates} 个候选 · {new Set(open.ballots.map((b) => b.userId)).size}{" "}
-              人已投 →
+              {t("{candidates} 个候选 · {n} 人已投 →", {
+                candidates: open._count.candidates,
+                n: new Set(open.ballots.map((b) => b.userId)).size,
+              })}
             </span>
           </Link>
         </Card>
       ) : (
         <Card className="space-y-3">
-          <h2 className="text-lg font-semibold">发起投票</h2>
-          <p className="text-sm text-zinc-500">决定下一次玩什么。发起后群里每个人都会看到。</p>
+          <h2 className="text-lg font-semibold">{t("发起投票")}</h2>
+          <p className="text-sm text-zinc-500">
+            {t("决定下一次玩什么。发起后群里每个人都会看到。")}
+          </p>
           <StartRoundForm
             groupId={id}
             last={
@@ -58,12 +69,12 @@ export default async function GroupVotesPage({ params }: { params: Promise<{ id:
 
       <Card className="space-y-2">
         <h2 className="text-lg font-semibold">
-          历史投票 <span className="text-sm text-zinc-500">({past.length})</span>
+          {t("历史投票")} <span className="text-sm text-zinc-500">({past.length})</span>
         </h2>
         {past.length === 0 ? (
-          <p className="text-sm text-zinc-500">还没有结束的投票。</p>
+          <p className="text-sm text-zinc-500">{t("还没有结束的投票。")}</p>
         ) : (
-          <ul aria-label="历史投票" className="divide-y divide-zinc-200 dark:divide-zinc-800">
+          <ul aria-label={t("历史投票")} className="divide-y divide-zinc-200 dark:divide-zinc-800">
             {past.map((r) => (
               <li key={r.id}>
                 <Link
@@ -72,19 +83,21 @@ export default async function GroupVotesPage({ params }: { params: Promise<{ id:
                 >
                   <div className="min-w-0">
                     <p className="truncate font-medium">
-                      第 {r.number} 轮{r.title && `《${r.title}》`}
+                      {r.title
+                        ? t("第 {n} 轮《{title}》", { n: r.number, title: r.title })
+                        : t("第 {n} 轮", { n: r.number })}
                     </p>
                     <p className="text-xs text-zinc-500">
                       <LocalDate value={r.startedAt} /> ·{" "}
-                      {r.endReason && END_REASON_TEXT[r.endReason]} ·{" "}
-                      {new Set(r.ballots.map((b) => b.userId)).size} 人投票
+                      {r.endReason && t(END_REASON_TEXT[r.endReason])} ·{" "}
+                      {t("{n} 人投票", { n: new Set(r.ballots.map((b) => b.userId)).size })}
                     </p>
                   </div>
                   <span className="shrink-0 text-sm">
                     {r.winner ? (
                       `🏆 ${r.winner.name}`
                     ) : (
-                      <span className="text-zinc-400">无人投票</span>
+                      <span className="text-zinc-400">{t("无人投票")}</span>
                     )}
                   </span>
                 </Link>

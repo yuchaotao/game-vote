@@ -5,6 +5,7 @@ import type { FormState } from "@/lib/auth/actions";
 import { gamblePeekAction, gambleSwapAction } from "@/lib/votes/actions";
 import { LuckCoin } from "./luck-coin";
 import { Alert, Button } from "./ui";
+import { useT } from "./i18n";
 
 /** 赌一把 and 偷梁换柱 (#57), a few times each per round, won with the member's lucky coin. */
 export function GambleActions({
@@ -26,6 +27,7 @@ export function GambleActions({
   /** 偷梁换柱 copies one of your own votes, so you need some. */
   hasVotes: boolean;
 }) {
+  const t = useT();
   const [state, setState] = useState<FormState>();
   const [pending, start] = useTransition();
   const run = (question: string, fn: () => Promise<FormState>) => {
@@ -37,8 +39,8 @@ export function GambleActions({
       {state?.error && <Alert kind="error">{state.error}</Alert>}
       {state?.ok && <Alert kind="ok">{state.ok}</Alert>}
       <p className="flex flex-wrap items-center gap-1 text-xs text-zinc-500">
-        你的幸运硬币 <LuckCoin luck={luck} showValue />
-        ：成功率 {luck}%，成功 +5%、失败 −1%，每轮各 {limit} 次。
+        {t("你的幸运硬币")} <LuckCoin luck={luck} showValue />
+        {t("：成功率 {luck}%，成功 +5%、失败 −1%，每轮各 {limit} 次。", { luck, limit })}
       </p>
       <div className="flex flex-wrap gap-2">
         <Button
@@ -48,27 +50,33 @@ export function GambleActions({
           disabled={pending || peekLeft <= 0}
           onClick={() =>
             run(
-              `赌一把：有 ${luck}% 的概率偷看成功（结果只显示这一次，没人知道）；失败的话大家都会看到你想偷看。`,
+              t(
+                "赌一把：有 {luck}% 的概率偷看成功（结果只显示这一次，没人知道）；失败的话大家都会看到你想偷看。",
+                { luck },
+              ),
               () => gamblePeekAction(groupId, roundId),
             )
           }
         >
-          🎲 {peekLeft > 0 ? `赌一把 · 剩 ${peekLeft} 次` : "次数已用完"}
+          🎲 {peekLeft > 0 ? t("赌一把 · 剩 {n} 次", { n: peekLeft }) : t("次数已用完")}
         </Button>
         <Button
           type="button"
           variant="secondary"
           className="px-3 py-1.5"
           disabled={pending || swapLeft <= 0 || !hasVotes}
-          title={hasVotes ? undefined : "先投票才能偷梁换柱"}
+          title={hasVotes ? undefined : t("先投票才能偷梁换柱")}
           onClick={() =>
             run(
-              `偷梁换柱：有 ${luck}% 的概率把别人的一票悄悄换成你投的游戏；失败会公开「你尝试改谁的票」。`,
+              t(
+                "偷梁换柱：有 {luck}% 的概率把别人的一票悄悄换成你投的游戏；失败会公开「你尝试改谁的票」。",
+                { luck },
+              ),
               () => gambleSwapAction(groupId, roundId),
             )
           }
         >
-          😈 {swapLeft > 0 ? `偷梁换柱 · 剩 ${swapLeft} 次` : "次数已用完"}
+          😈 {swapLeft > 0 ? t("偷梁换柱 · 剩 {n} 次", { n: swapLeft }) : t("次数已用完")}
         </Button>
       </div>
     </div>

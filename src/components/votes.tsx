@@ -25,6 +25,8 @@ import {
 } from "@/lib/votes/actions";
 import { GameCover, ReviewSummary } from "./games";
 import { Alert, Avatar, Button, Field } from "./ui";
+import { Trans, useLocale, useT } from "./i18n";
+import { intlLocale, type T } from "@/lib/i18n";
 
 type UserLite = { id: string; displayName: string; avatarUrl: string | null };
 type GameLite = {
@@ -75,30 +77,37 @@ export function LiveVotes({ groupId }: { groupId: string }) {
 
 /** "2 小时 5 分钟后截止" in the viewer's clock; refreshes when it passes. */
 export function Deadline({ at }: { at: Date }) {
+  const t = useT();
+  const locale = useLocale();
   const router = useRouter();
   const [now, setNow] = useState<number | null>(null);
   useEffect(() => {
     setNow(Date.now());
-    const t = setInterval(() => setNow(Date.now()), 30_000);
-    return () => clearInterval(t);
+    const timer = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(timer);
   }, []);
   const ms = new Date(at).getTime() - (now ?? 0);
   useEffect(() => {
     if (now !== null && ms <= 0) router.refresh();
   }, [ms, now, router]);
   if (now === null) return null;
-  if (ms <= 0) return <span>已到截止时间</span>;
+  if (ms <= 0) return <span>{t("已到截止时间")}</span>;
   const minutes = Math.ceil(ms / 60_000);
   const text =
     minutes < 60
-      ? `${minutes} 分钟`
+      ? t("{n} 分钟", { n: minutes })
       : minutes < 48 * 60
-        ? `${Math.floor(minutes / 60)} 小时 ${minutes % 60} 分钟`
-        : `${Math.floor(minutes / 1440)} 天`;
+        ? t("{h} 小时 {m} 分钟", { h: Math.floor(minutes / 60), m: minutes % 60 })
+        : t("{n} 天", { n: Math.floor(minutes / 1440) });
   return (
     <span>
-      {text}后截止（
-      {new Date(at).toLocaleString("zh-CN", { dateStyle: "short", timeStyle: "short" })}）
+      {t("{left}后截止（{at}）", {
+        left: text,
+        at: new Date(at).toLocaleString(intlLocale(locale), {
+          dateStyle: "short",
+          timeStyle: "short",
+        }),
+      })}
     </span>
   );
 }
@@ -129,6 +138,7 @@ function sameTimeNextWeek(iso: string) {
 }
 
 export function StartRoundForm({ groupId, last }: { groupId: string; last?: LastSettings | null }) {
+  const t = useT();
   const [state, action, pending] = useActionState(startRoundAction.bind(null, groupId), undefined);
   const [anonymous, setAnonymous] = useState(true);
   const [repeat, setRepeat] = useState(true);
@@ -164,15 +174,15 @@ export function StartRoundForm({ groupId, last }: { groupId: string; last?: Last
       <Status state={state} />
       {last && (
         <Button type="button" variant="secondary" className="px-3 py-1.5" onClick={applyLast}>
-          ↺ 使用上一次的设置（第 {last.number} 轮）
+          ↺ {t("使用上一次的设置（第 {n} 轮）", { n: last.number })}
         </Button>
       )}
       <Field
-        label="标题"
+        label={t("标题")}
         name="title"
         maxLength={60}
-        placeholder="例如：周五晚上玩什么"
-        hint="可选"
+        placeholder={t("例如：周五晚上玩什么")}
+        hint={t("可选")}
       />
       <label className="flex items-start gap-2 text-sm">
         <input
@@ -186,9 +196,9 @@ export function StartRoundForm({ groupId, last }: { groupId: string; last?: Last
           className="mt-0.5 size-4 accent-indigo-600"
         />
         <span>
-          <span className="font-medium">匿名投票</span>
+          <span className="font-medium">{t("匿名投票")}</span>
           <span className="block text-xs text-zinc-500">
-            揭榜前不显示票数和排名；想提前看可以「赌一把」，还能「偷梁换柱」。
+            {t("揭榜前不显示票数和排名；想提前看可以「赌一把」，还能「偷梁换柱」。")}
           </span>
         </span>
       </label>
@@ -201,46 +211,46 @@ export function StartRoundForm({ groupId, last }: { groupId: string; last?: Last
           className="mt-0.5 size-4 accent-indigo-600"
         />
         <span>
-          <span className="font-medium">同一个游戏可以投多票</span>
-          <span className="block text-xs text-zinc-500">可以把几票都投给最想玩的那个。</span>
+          <span className="font-medium">{t("同一个游戏可以投多票")}</span>
+          <span className="block text-xs text-zinc-500">{t("可以把几票都投给最想玩的那个。")}</span>
         </span>
       </label>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field
-          label="每人票数"
+          label={t("每人票数")}
           name="maxVotes"
           type="number"
           min={1}
           max={10}
           value={maxVotes}
           onChange={(e) => setMaxVotes(e.target.value)}
-          hint={repeat ? "可以集中投给一个游戏" : "每个游戏最多投 1 票"}
+          hint={repeat ? t("可以集中投给一个游戏") : t("每个游戏最多投 1 票")}
         />
         <div>
           <Field
-            label={anonymous ? "揭榜时间" : "截止时间"}
+            label={anonymous ? t("揭榜时间") : t("截止时间")}
             type="datetime-local"
             value={local}
             required={anonymous}
             onChange={(e) => setLocal(e.target.value)}
-            hint={anonymous ? "到点揭榜并结束投票" : "可选，到时自动结束"}
+            hint={anonymous ? t("到点揭榜并结束投票") : t("可选，到时自动结束")}
           />
           <input type="hidden" name="deadline" value={iso} />
         </div>
         {anonymous && (
           <Field
-            label="每轮可赌次数"
+            label={t("每轮可赌次数")}
             name="gambleLimit"
             type="number"
             min={1}
             max={20}
             value={gambleLimit}
             onChange={(e) => setGambleLimit(e.target.value)}
-            hint="赌一把、偷梁换柱各这么多次"
+            hint={t("赌一把、偷梁换柱各这么多次")}
           />
         )}
       </div>
-      <Button disabled={pending}>发起投票</Button>
+      <Button disabled={pending}>{t("发起投票")}</Button>
     </form>
   );
 }
@@ -270,6 +280,7 @@ export function VoteBoard({
   /** Several votes on one game allowed: a − n + stepper instead of a toggle. */
   repeat?: boolean;
 }) {
+  const t = useT();
   // Starts when the reveal arrives (possibly live, on an open page) and is kept
   // from then on, so a later refresh doesn't cut the effect short.
   const [celebrating, setCelebrating] = useState(celebrate);
@@ -289,25 +300,34 @@ export function VoteBoard({
 
   if (items.length === 0) {
     return (
-      <p className="text-sm text-zinc-500">还没有候选游戏。从游戏库挑几个，或者直接添加新游戏。</p>
+      <p className="text-sm text-zinc-500">
+        {t("还没有候选游戏。从游戏库挑几个，或者直接添加新游戏。")}
+      </p>
     );
   }
   return (
     <div className="space-y-3">
       {open && (
         <p className="text-sm text-zinc-600 dark:text-zinc-400" aria-live="polite">
-          你还剩 <strong>{left}</strong> / {maxVotes} 票
+          <Trans
+            text="你还剩 {left} / {max} 票"
+            values={{ left: <strong>{left}</strong>, max: maxVotes }}
+          />
         </p>
       )}
       <Status state={state} />
-      <ol aria-label="候选游戏" className="space-y-2">
+      <ol aria-label={t("候选游戏")} className="space-y-2">
         {items.map((item, index) => {
           const count = myVotes[item.game.id] ?? 0;
           const mine = count > 0;
           return (
             <li
               key={item.game.id}
-              aria-label={hidden ? item.game.name : `第 ${item.rank} 名 ${item.game.name}`}
+              aria-label={
+                hidden
+                  ? item.game.name
+                  : t("第 {rank} 名 {name}", { rank: item.rank, name: item.game.name })
+              }
               data-winner={celebrating && index === 0 ? "" : undefined}
               style={
                 celebrating
@@ -348,15 +368,15 @@ export function VoteBoard({
                       />
                     </span>
                     <span className="w-12 shrink-0 text-right text-sm font-semibold">
-                      {item.votes} 票
+                      {t("{n} 票", { n: item.votes })}
                     </span>
                   </div>
                   {item.voters.length > 0 && (
-                    <div className="flex flex-wrap gap-1" aria-label="投票的人">
+                    <div className="flex flex-wrap gap-1" aria-label={t("投票的人")}>
                       {item.voters.map((v) => (
                         <span
                           key={v.id}
-                          title={`${v.displayName}${(v.count ?? 1) > 1 ? ` · ${v.count} 票` : ""}`}
+                          title={`${v.displayName}${(v.count ?? 1) > 1 ? ` · ${t("{n} 票", { n: v.count ?? 1 })}` : ""}`}
                           className="relative"
                         >
                           <Avatar src={v.avatarUrl} name={v.displayName} size={20} />
@@ -382,13 +402,13 @@ export function VoteBoard({
                         run(() => removeCandidateAction(groupId, roundId, item.game.id))
                       }
                     >
-                      移除
+                      {t("移除")}
                     </button>
                   )}
                   {repeat ? (
                     <div
                       role="group"
-                      aria-label={`我给 ${item.game.name} 的票`}
+                      aria-label={t("我给 {name} 的票", { name: item.game.name })}
                       className={`flex min-h-9 items-center overflow-hidden rounded-lg border ${
                         mine
                           ? "border-indigo-400 dark:border-indigo-700"
@@ -397,7 +417,7 @@ export function VoteBoard({
                     >
                       <button
                         type="button"
-                        aria-label={`撤回一票 ${item.game.name}`}
+                        aria-label={t("撤回一票 {name}", { name: item.game.name })}
                         disabled={pending || !mine}
                         onClick={() =>
                           run(() => stepVoteAction(groupId, roundId, item.game.id, -1))
@@ -412,11 +432,11 @@ export function VoteBoard({
                           mine ? "text-indigo-700 dark:text-indigo-300" : "text-zinc-400"
                         }`}
                       >
-                        {count} 票
+                        {t("{n} 票", { n: count })}
                       </span>
                       <button
                         type="button"
-                        aria-label={`加一票 ${item.game.name}`}
+                        aria-label={t("加一票 {name}", { name: item.game.name })}
                         disabled={pending || left <= 0}
                         onClick={() => run(() => stepVoteAction(groupId, roundId, item.game.id, 1))}
                         className="h-9 w-9 bg-indigo-600 text-lg text-white hover:bg-indigo-500 disabled:bg-zinc-200 disabled:text-zinc-400 dark:disabled:bg-zinc-800"
@@ -430,11 +450,15 @@ export function VoteBoard({
                       variant={mine ? "primary" : "secondary"}
                       className="min-h-9 px-3 py-1.5"
                       aria-pressed={mine}
-                      aria-label={`${mine ? "取消投票" : "投票"} ${item.game.name}`}
+                      aria-label={
+                        mine
+                          ? t("取消投票 {name}", { name: item.game.name })
+                          : t("投票 {name}", { name: item.game.name })
+                      }
                       disabled={pending || (!mine && left <= 0)}
                       onClick={() => run(() => toggleVoteAction(groupId, roundId, item.game.id))}
                     >
-                      {mine ? "✓ 已投" : "投一票"}
+                      {mine ? t("✓ 已投") : t("投一票")}
                     </Button>
                   )}
                 </div>
@@ -456,6 +480,7 @@ export function AddFromLibrary({
   roundId: string;
   games: { id: string; name: string }[];
 }) {
+  const t = useT();
   const [gameId, setGameId] = useState(games[0]?.id ?? "");
   const [state, setState] = useState<FormState>();
   const [pending, start] = useTransition();
@@ -463,14 +488,14 @@ export function AddFromLibrary({
     if (!games.some((g) => g.id === gameId)) setGameId(games[0]?.id ?? "");
   }, [games, gameId]);
   if (games.length === 0) {
-    return <p className="text-sm text-zinc-500">游戏库里的游戏都已经是候选了。</p>;
+    return <p className="text-sm text-zinc-500">{t("游戏库里的游戏都已经是候选了。")}</p>;
   }
   return (
     <div className="space-y-2">
       <Status state={state} />
       <div className="flex flex-wrap gap-2">
         <select
-          aria-label="从游戏库选择"
+          aria-label={t("从游戏库选择")}
           value={gameId}
           onChange={(e) => setGameId(e.target.value)}
           className="min-w-40 flex-1 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
@@ -488,7 +513,7 @@ export function AddFromLibrary({
             start(async () => setState(await addCandidateAction(groupId, roundId, gameId)))
           }
         >
-          加入候选
+          {t("加入候选")}
         </Button>
         <Button
           type="button"
@@ -498,7 +523,7 @@ export function AddFromLibrary({
             start(async () => setState(await addAllCandidatesAction(groupId, roundId)))
           }
         >
-          添加全部（{games.length}）
+          {t("添加全部（{n}）", { n: games.length })}
         </Button>
       </div>
     </div>
@@ -506,6 +531,7 @@ export function AddFromLibrary({
 }
 
 export function EndRoundControls({ groupId, roundId }: { groupId: string; roundId: string }) {
+  const t = useT();
   const [state, setState] = useState<FormState>();
   const [pending, start] = useTransition();
   const end = (startNext: boolean, question: string) => {
@@ -519,39 +545,49 @@ export function EndRoundControls({ groupId, roundId }: { groupId: string; roundI
         <Button
           type="button"
           disabled={pending}
-          onClick={() => end(true, "结束这轮投票，并用相同的候选开启下一轮？")}
+          onClick={() => end(true, t("结束这轮投票，并用相同的候选开启下一轮？"))}
         >
-          结束并开启下一轮
+          {t("结束并开启下一轮")}
         </Button>
         <button
           type="button"
           disabled={pending}
-          onClick={() => end(false, "结束这轮投票？")}
+          onClick={() => end(false, t("结束这轮投票？"))}
           className="text-xs text-zinc-400 underline-offset-2 hover:text-zinc-600 hover:underline"
         >
-          仅结束投票
+          {t("仅结束投票")}
         </button>
       </div>
     </div>
   );
 }
 
-function describe(e: ReplayEvent, users: Record<string, string>, games: Record<string, string>) {
-  const who = (e.userId && users[e.userId]) || "某人";
-  const game = games[e.gameId] ?? "某个游戏";
+function describe(
+  e: ReplayEvent,
+  users: Record<string, string>,
+  games: Record<string, string>,
+  t: T,
+) {
+  const who = (e.userId && users[e.userId]) || t("某人");
+  const game = games[e.gameId] ?? t("某个游戏");
   switch (e.kind) {
     case "CANDIDATE":
-      return `${who} 加入候选《${game}》`;
+      return t("{who} 加入候选《{game}》", { who, game });
     case "CAST":
-      return `${who} 投给了《${game}》`;
+      return t("{who} 投给了《{game}》", { who, game });
     case "RETRACT":
-      return `${who} 取消了对《${game}》的投票`;
+      return t("{who} 取消了对《{game}》的投票", { who, game });
     case "REMOVED":
-      return `${who} 移除了候选《${game}》`;
+      return t("{who} 移除了候选《{game}》", { who, game });
     case "SWAP": {
-      const actor = (e.actorId && users[e.actorId]) || "某人";
-      const to = (e.toGameId && games[e.toGameId]) || "某个游戏";
-      return `😈 ${actor} 偷梁换柱：把 ${who} 的一票从《${game}》换成了《${to}》`;
+      const actor = (e.actorId && users[e.actorId]) || t("某人");
+      const to = (e.toGameId && games[e.toGameId]) || t("某个游戏");
+      return t("😈 {actor} 偷梁换柱：把 {who} 的一票从《{game}》换成了《{to}》", {
+        actor,
+        who,
+        game,
+        to,
+      });
     }
   }
 }
@@ -566,6 +602,8 @@ export function RoundReplay({
   users: Record<string, string>;
   games: Record<string, string>;
 }) {
+  const t = useT();
+  const locale = useLocale();
   const frames = useMemo(() => replayFrames(events), [events]);
   const [step, setStep] = useState(frames.length - 1);
   const [playing, setPlaying] = useState(false);
@@ -576,16 +614,17 @@ export function RoundReplay({
       setPlaying(false);
       return;
     }
-    const t = setTimeout(() => setStep((s) => s + 1), 900);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setStep((s) => s + 1), 900);
+    return () => clearTimeout(timer);
   }, [playing, step, frames.length]);
 
-  if (frames.length === 0) return <p className="text-sm text-zinc-500">这轮还没有任何记录。</p>;
+  if (frames.length === 0)
+    return <p className="text-sm text-zinc-500">{t("这轮还没有任何记录。")}</p>;
   const frame = frames[Math.max(0, step)];
   const top = Math.max(1, ...frame.standings.map((s) => s.votes));
 
   return (
-    <div role="region" className="space-y-3" aria-label="投票回放">
+    <div role="region" className="space-y-3" aria-label={t("投票回放")}>
       <div className="flex items-center gap-3">
         <Button
           type="button"
@@ -596,11 +635,11 @@ export function RoundReplay({
             setPlaying((p) => !p);
           }}
         >
-          {playing ? "暂停" : "▶ 回放"}
+          {playing ? t("暂停") : t("▶ 回放")}
         </Button>
         <input
           type="range"
-          aria-label="回放进度"
+          aria-label={t("回放进度")}
           min={0}
           max={frames.length - 1}
           value={step}
@@ -616,11 +655,14 @@ export function RoundReplay({
       </div>
       <p className="text-sm" aria-live="polite">
         <time className="mr-2 text-zinc-500" dateTime={frame.at}>
-          {new Date(frame.at).toLocaleString("zh-CN", { dateStyle: "short", timeStyle: "short" })}
+          {new Date(frame.at).toLocaleString(intlLocale(locale), {
+            dateStyle: "short",
+            timeStyle: "short",
+          })}
         </time>
-        {describe(frame.event, users, games)}
+        {describe(frame.event, users, games, t)}
       </p>
-      <ol aria-label="当时的排名" className="space-y-1.5">
+      <ol aria-label={t("当时的排名")} className="space-y-1.5">
         {frame.standings.map((s) => (
           <li key={s.gameId} className="flex items-center gap-2 text-sm">
             <span className="w-5 shrink-0 text-center text-zinc-400">{s.rank}</span>
@@ -631,7 +673,7 @@ export function RoundReplay({
                 style={{ width: `${(s.votes / top) * 100}%` }}
               />
             </span>
-            <span className="w-10 shrink-0 text-right">{s.votes} 票</span>
+            <span className="w-10 shrink-0 text-right">{t("{n} 票", { n: s.votes })}</span>
           </li>
         ))}
       </ol>
