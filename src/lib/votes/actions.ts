@@ -23,6 +23,7 @@ import {
   addAllCandidates,
   addCandidate,
   addVote,
+  confirmVotes,
   endAndStartNext,
   endRound,
   removeCandidate,
@@ -258,6 +259,14 @@ export async function gambleSwapAction(groupId: string, roundId: string): Promis
 }
 
 /** Repeat-vote rounds (#53): one more vote, or one back, for a game. */
+export async function confirmVotesAction(groupId: string, roundId: string): Promise<FormState> {
+  return asMember(groupId, async (userId) => {
+    if (!(await rateLimit(`vote:${userId}`, 60, 60))) throw new VoteError("操作太频繁了，请稍等");
+    await confirmVotes(groupId, roundId, userId);
+    refresh(groupId);
+  });
+}
+
 export async function stepVoteAction(
   groupId: string,
   roundId: string,

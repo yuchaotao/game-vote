@@ -136,6 +136,7 @@ test("vote from the live Discord message; it follows changes from either side", 
 
   // Ending the round on the website freezes the message with the result.
   owner.page.once("dialog", (d) => d.accept());
+  await owner.page.getByText("管理投票", { exact: true }).click();
   await owner.page.getByRole("button", { name: "仅结束投票" }).click();
   await expect(owner.page.getByText("已结束", { exact: true })).toBeVisible();
   runJob("sync-discord-round", { roundId });

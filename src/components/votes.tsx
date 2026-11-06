@@ -21,6 +21,7 @@ import {
   removeCandidateAction,
   startRoundAction,
   stepVoteAction,
+  confirmVotesAction,
   toggleVoteAction,
 } from "@/lib/votes/actions";
 import { GameCover, ReviewSummary } from "./games";
@@ -530,7 +531,51 @@ export function AddFromLibrary({
   );
 }
 
-export function EndRoundControls({ groupId, roundId }: { groupId: string; roundId: string }) {
+/** Submits this member's own votes (#72); it affects nobody else. */
+export function ConfirmVotes({
+  groupId,
+  roundId,
+  confirmed,
+  hasVotes,
+}: {
+  groupId: string;
+  roundId: string;
+  confirmed: boolean;
+  hasVotes: boolean;
+}) {
+  const t = useT();
+  const [state, setState] = useState<FormState>();
+  const [pending, start] = useTransition();
+  return (
+    <div className="space-y-2">
+      <Status state={state} />
+      {confirmed ? (
+        <p className="text-sm">
+          <span className="font-medium text-emerald-700 dark:text-emerald-400">
+            {t("✓ 已确认")}
+          </span>{" "}
+          <span className="text-xs text-zinc-500">{t("改票后需要重新确认")}</span>
+        </p>
+      ) : (
+        <Button
+          type="button"
+          disabled={pending || !hasVotes}
+          onClick={() =>
+            start(async () => {
+              const res = await confirmVotesAction(groupId, roundId);
+              setState(res?.error ? res : undefined);
+            })
+          }
+        >
+          {t("确认投票")}
+        </Button>
+      )}
+    </div>
+  );
+}
+
+/** Ending the round affects everyone, so it stays out of the way. */
+export function ManageRound({ groupId, roundId }: { groupId: string; roundId: string }) {
   const t = useT();
   const [state, setState] = useState<FormState>();
   const [pending, start] = useTransition();
@@ -538,27 +583,33 @@ export function EndRoundControls({ groupId, roundId }: { groupId: string; roundI
     if (!confirm(question)) return;
     start(async () => setState(await endRoundAction(groupId, roundId, startNext)));
   };
+  const action =
+    "cursor-pointer text-xs text-zinc-500 underline-offset-2 hover:text-zinc-700 hover:underline disabled:opacity-50 dark:hover:text-zinc-300";
   return (
-    <div className="space-y-2">
-      <Status state={state} />
-      <div className="flex flex-wrap items-center gap-3">
-        <Button
+    <details className="ml-auto text-right">
+      <summary className="cursor-pointer list-none text-xs text-zinc-400 select-none hover:text-zinc-600 dark:hover:text-zinc-300">
+        {t("管理投票")}
+      </summary>
+      <div className="mt-2 flex flex-wrap justify-end gap-x-4 gap-y-2">
+        <button
           type="button"
           disabled={pending}
           onClick={() => end(true, t("结束这轮投票，并用相同的候选开启下一轮？"))}
+          className={action}
         >
           {t("结束并开启下一轮")}
-        </Button>
+        </button>
         <button
           type="button"
           disabled={pending}
           onClick={() => end(false, t("结束这轮投票？"))}
-          className="text-xs text-zinc-400 underline-offset-2 hover:text-zinc-600 hover:underline"
+          className={action}
         >
           {t("仅结束投票")}
         </button>
       </div>
-    </div>
+      <Status state={state} />
+    </details>
   );
 }
 

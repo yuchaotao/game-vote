@@ -698,4 +698,10 @@ export const en: Record<string, string> = {
   只有添加者或群主可以移除候选: "Only whoever added it or the group owner can remove a candidate",
   已经有人投票的候选不能移除: "A candidate with votes can't be removed",
   你还没有给这个游戏投票: "You haven't voted for this game yet",
+  确认投票: "Confirm my votes",
+  "✓ 已确认": "✓ Confirmed",
+  改票后需要重新确认: "If you change a vote, confirm again",
+  先投票再确认: "Vote first, then confirm",
+  管理投票: "Manage vote",
+  "{n} 人已确认": "{n} confirmed",
 };
