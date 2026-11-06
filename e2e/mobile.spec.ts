@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { PrismaClient } from "@prisma/client";
 import { mainStatus } from "./helpers";
 import { groupOfTwo } from "./social";
 
@@ -82,4 +83,47 @@ test("voting on a phone: cards stack, nothing overlaps or scrolls sideways", asy
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(roundUrl);
   await shot(page, "round-desktop");
+});
+
+test("chat on a phone: long system messages and bubbles don't overlap", async ({ browser }) => {
+  const { friend, path } = await groupOfTwo(browser);
+  const groupId = path.split("/").pop()!;
+  const db = new PrismaClient();
+  const long =
+    "检测到 3/4 名成员正在一起玩《博德之门3》（已 25 分钟），它在第 12 轮投票中排第 1。可以在群页面顶部选择是否结束投票。";
+  try {
+    for (const body of [long, long]) {
+      await db.chatMessage.create({ data: { groupId, type: "SYSTEM", body } });
+    }
+    const { id: authorId } = await db.user.findUniqueOrThrow({
+      where: { username: friend.code.split("#")[0] },
+    });
+    await db.chatMessage.create({
+      data: { groupId, authorId, body: `${long}\n第二行\n${long}` },
+    });
+  } finally {
+    await db.$disconnect();
+  }
+
+  const page = friend.page;
+  await page.setViewportSize(PHONE);
+  await page.goto(`${path}/chat`);
+  const system = page.locator("[data-system]").filter({ hasText: "检测到" });
+  await expect(system).toHaveCount(2);
+  await shot(page, "chat-phone");
+  await noSideways(page);
+
+  // A wrapped system message is one solid box, not an inline box per line whose
+  // backgrounds run into each other.
+  const boxes = system.locator("[data-system-text]");
+  await expect(boxes).toHaveCount(2);
+  for (const box of await boxes.all()) {
+    expect(await box.evaluate((el) => el.getClientRects().length)).toBe(1);
+  }
+  const [a, b] = [(await boxes.nth(0).boundingBox())!, (await boxes.nth(1).boundingBox())!];
+  expect(a.y + a.height, "messages don't overlap").toBeLessThanOrEqual(b.y);
+
+  // 16 px, so iPhones don't zoom the page when the input is tapped.
+  const composer = page.getByRole("textbox", { name: "输入消息" });
+  expect(await composer.evaluate((el) => getComputedStyle(el).fontSize)).toBe("16px");
 });
