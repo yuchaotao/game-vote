@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { msg } from "@/lib/i18n";
 
 // Pure voting logic: round settings, tallies, ranking and replay frames.
 
@@ -200,10 +201,10 @@ export function canAdd(o: {
 }
 
 export const END_REASON_TEXT = {
-  MANUAL: "手动结束",
-  NEXT_ROUND: "结束并开启了下一轮",
-  DEADLINE: "到达截止时间",
-  PROMPT: "检测到大家在一起玩",
+  MANUAL: msg("手动结束"),
+  NEXT_ROUND: msg("结束并开启了下一轮"),
+  DEADLINE: msg("到达截止时间"),
+  PROMPT: msg("检测到大家在一起玩"),
 } as const;
 
 // Anonymous rounds (#51) reveal on Friday at noon, Beijing time (UTC+8, no DST).
@@ -228,7 +229,7 @@ export function resultsHidden(round: { anonymous: boolean; status: string }, pee
 }
 
 export function endReasonText(reason: keyof typeof END_REASON_TEXT, anonymous: boolean) {
-  return anonymous && reason === "DEADLINE" ? "到点揭榜" : END_REASON_TEXT[reason];
+  return anonymous && reason === "DEADLINE" ? msg("到点揭榜") : END_REASON_TEXT[reason];
 }
 
 /** e.g. "10/31周五 12:00", Beijing time, for chat and notifications. */

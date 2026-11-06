@@ -29,6 +29,8 @@ import {
 } from "@/lib/games/rules";
 import type { IgdbLookup, LibraryEntry, SteamLookup } from "@/lib/games/service";
 import { Alert, Avatar, Button, Field } from "./ui";
+import { Trans, useLocale, useT } from "./i18n";
+import { intlLocale, msg } from "@/lib/i18n";
 
 function Status({ state }: { state: FormState }) {
   if (state?.error) return <Alert kind="error">{state.error}</Alert>;
@@ -44,10 +46,11 @@ const chipClass =
 
 /** Renders a date in the viewer's timezone, after mount (server and browser zones differ). */
 export function LocalDate({ value }: { value: Date | string }) {
+  const locale = useLocale();
   const [text, setText] = useState("");
   useEffect(() => {
-    setText(new Date(value).toLocaleDateString("zh-CN"));
-  }, [value]);
+    setText(new Date(value).toLocaleDateString(intlLocale(locale)));
+  }, [value, locale]);
   return <time dateTime={new Date(value).toISOString()}>{text}</time>;
 }
 
@@ -105,6 +108,8 @@ type ReviewInfo = Pick<
 >;
 
 export function ReviewSummary({ game }: { game: ReviewInfo }) {
+  const locale = useLocale();
+  const t = useT();
   if (game.reviewPercent !== null) {
     const tone =
       game.reviewPercent >= 80
@@ -114,12 +119,13 @@ export function ReviewSummary({ game }: { game: ReviewInfo }) {
           : "text-red-600 dark:text-red-400";
     return (
       <span className={`text-sm font-medium ${tone}`}>
-        {game.reviewLabel ?? "好评率"} {game.reviewPercent}
+        {game.reviewLabel ?? t("好评率")} {game.reviewPercent}
         {game.source === "IGDB" ? "" : "%"}
         {game.reviewCount !== null && (
           <span className="ml-1 font-normal text-zinc-500">
-            （{game.reviewCount.toLocaleString("zh-CN")}{" "}
-            {game.source === "IGDB" ? "人评分" : "篇评测"}）
+            {t(game.source === "IGDB" ? "（{n} 人评分）" : "（{n} 篇评测）", {
+              n: game.reviewCount.toLocaleString(intlLocale(locale)),
+            })}
           </span>
         )}
       </span>
@@ -131,15 +137,17 @@ export function ReviewSummary({ game }: { game: ReviewInfo }) {
   if (game.reviewCount !== null) {
     return (
       <span className="text-sm text-zinc-500">
-        {game.reviewCount.toLocaleString("zh-CN")} 人推荐
+        {t("{n} 人推荐", { n: game.reviewCount.toLocaleString(intlLocale(locale)) })}
       </span>
     );
   }
-  return <span className="text-sm text-zinc-400">暂无评价</span>;
+  return <span className="text-sm text-zinc-400">{t("暂无评价")}</span>;
 }
 
 export function PriceTag({ game }: { game: GameInfo }) {
-  if (game.isFree) return <span className="text-sm font-medium text-emerald-600">免费</span>;
+  const t = useT();
+  const locale = useLocale();
+  if (game.isFree) return <span className="text-sm font-medium text-emerald-600">{t("免费")}</span>;
   if (game.priceFinal === null || !game.priceCurrency) return null;
   return (
     <span className="flex items-center gap-1.5 text-sm">
@@ -150,10 +158,12 @@ export function PriceTag({ game }: { game: GameInfo }) {
       )}
       {game.discountPercent && game.priceInitial !== null && (
         <s className="text-xs text-zinc-400">
-          {formatPrice(game.priceInitial, game.priceCurrency)}
+          {formatPrice(game.priceInitial, game.priceCurrency, intlLocale(locale))}
         </s>
       )}
-      <span className="font-medium">{formatPrice(game.priceFinal, game.priceCurrency)}</span>
+      <span className="font-medium">
+        {formatPrice(game.priceFinal, game.priceCurrency, intlLocale(locale))}
+      </span>
     </span>
   );
 }
@@ -161,10 +171,11 @@ export function PriceTag({ game }: { game: GameInfo }) {
 const SOURCE_LABEL: Record<Game["source"], string> = {
   STEAM: "Steam",
   IGDB: "IGDB",
-  MANUAL: "手动添加",
+  MANUAL: msg("手动添加"),
 };
 
 function GameCard({ entry, groupId, hot }: { entry: LibraryEntry; groupId: string; hot: number }) {
+  const t = useT();
   const g = entry.game;
   return (
     <li>
@@ -178,11 +189,14 @@ function GameCard({ entry, groupId, hot }: { entry: LibraryEntry; groupId: strin
             <h3 className="font-semibold leading-tight group-hover:text-indigo-600">{g.name}</h3>
             <span className="flex shrink-0 items-center gap-2 text-xs text-zinc-400">
               {hot > 0 && (
-                <span title="热度" className="font-medium text-orange-600 dark:text-orange-400">
+                <span
+                  title={t("热度")}
+                  className="font-medium text-orange-600 dark:text-orange-400"
+                >
                   🔥 {hot}
                 </span>
               )}
-              {SOURCE_LABEL[g.source]}
+              {t(SOURCE_LABEL[g.source])}
             </span>
           </div>
           <ReviewSummary game={g} />
@@ -201,7 +215,7 @@ function GameCard({ entry, groupId, hot }: { entry: LibraryEntry; groupId: strin
           <div className="mt-auto flex items-center justify-between gap-2 pt-1">
             <PriceTag game={g} />
             <span className="ml-auto truncate text-xs text-zinc-400">
-              {entry.addedBy ? `${entry.addedBy.displayName} 添加` : ""}
+              {entry.addedBy ? t("{name} 添加", { name: entry.addedBy.displayName }) : ""}
             </span>
           </div>
         </div>
@@ -211,10 +225,10 @@ function GameCard({ entry, groupId, hot }: { entry: LibraryEntry; groupId: strin
 }
 
 const SORTS: { value: LibrarySort; label: string }[] = [
-  { value: "hot", label: "热度" },
-  { value: "rating", label: "评分" },
-  { value: "recent", label: "最近添加" },
-  { value: "name", label: "名称" },
+  { value: "hot", label: msg("热度") },
+  { value: "rating", label: msg("评分") },
+  { value: "recent", label: msg("最近添加") },
+  { value: "name", label: msg("名称") },
 ];
 
 const selectClass =
@@ -229,6 +243,7 @@ export function GameLibrary({
   entries: LibraryEntry[];
   hot: Record<string, Hotness>;
 }) {
+  const t = useT();
   const [sort, setSort] = useState<LibrarySort>("hot");
   const [filter, setFilter] = useState("");
   const [genre, setGenre] = useState("");
@@ -266,23 +281,23 @@ export function GameLibrary({
   if (entries.length === 0) {
     return (
       <p className="rounded-xl border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-500 dark:border-zinc-700">
-        游戏库还是空的。搜索 Steam 或手动添加第一个游戏吧。
+        {t("游戏库还是空的。搜索 Steam 或手动添加第一个游戏吧。")}
       </p>
     );
   }
   return (
-    <section className="space-y-3" aria-label="游戏列表">
+    <section className="space-y-3" aria-label={t("游戏列表")}>
       <div className="flex flex-wrap items-center gap-2">
         <input
           type="search"
-          aria-label="在游戏库中查找"
-          placeholder="在游戏库中查找（名称、类型）"
+          aria-label={t("在游戏库中查找")}
+          placeholder={t("在游戏库中查找（名称、类型）")}
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           className={`${textareaClass} max-w-xs`}
         />
         <label className="ml-auto flex items-center gap-2 text-sm text-zinc-500">
-          排序
+          {t("排序")}
           <select
             value={sort}
             onChange={(e) => setSort(e.target.value as LibrarySort)}
@@ -290,7 +305,7 @@ export function GameLibrary({
           >
             {SORTS.map((s) => (
               <option key={s.value} value={s.value}>
-                {s.label}
+                {t(s.label)}
               </option>
             ))}
           </select>
@@ -299,12 +314,12 @@ export function GameLibrary({
       <div className="flex flex-wrap items-center gap-2 text-sm">
         {genres.length > 0 && (
           <select
-            aria-label="按类型筛选"
+            aria-label={t("按类型筛选")}
             value={genre}
             onChange={(e) => setGenre(e.target.value)}
             className={selectClass}
           >
-            <option value="">全部类型</option>
+            <option value="">{t("全部类型")}</option>
             {genres.map((g) => (
               <option key={g} value={g}>
                 {g}
@@ -314,15 +329,15 @@ export function GameLibrary({
         )}
         {sources.length > 1 && (
           <select
-            aria-label="按来源筛选"
+            aria-label={t("按来源筛选")}
             value={source}
             onChange={(e) => setSource(e.target.value as "" | Game["source"])}
             className={selectClass}
           >
-            <option value="">全部来源</option>
+            <option value="">{t("全部来源")}</option>
             {sources.map((s) => (
               <option key={s} value={s}>
-                {SOURCE_LABEL[s]}
+                {t(SOURCE_LABEL[s])}
               </option>
             ))}
           </select>
@@ -333,16 +348,16 @@ export function GameLibrary({
             checked={multiplayer}
             onChange={(e) => setMultiplayer(e.target.checked)}
           />
-          只看能一起玩的
+          {t("只看能一起玩的")}
         </label>
         <span className="ml-auto text-zinc-500">
           {shown.length === entries.length
-            ? `共 ${entries.length} 个`
-            : `${shown.length} / ${entries.length} 个`}
+            ? t("共 {n} 个", { n: entries.length })
+            : t("{shown} / {total} 个", { shown: shown.length, total: entries.length })}
         </span>
       </div>
       {shown.length === 0 ? (
-        <p className="text-sm text-zinc-500">没有匹配的游戏</p>
+        <p className="text-sm text-zinc-500">{t("没有匹配的游戏")}</p>
       ) : (
         <ul className="grid gap-4 sm:grid-cols-2">
           {shown.map((e) => (
@@ -356,19 +371,25 @@ export function GameLibrary({
 
 /** Where a game's hot score comes from (detail page). */
 export function HotnessBreakdown({ hot }: { hot: Hotness }) {
+  const t = useT();
   const parts: [string, number][] = [
-    ["群成员游玩", hot.play],
-    ["一起玩加成", hot.together],
-    ["投票", hot.votes],
-    ["新加入", hot.fresh],
+    [t("群成员游玩"), hot.play],
+    [t("一起玩加成"), hot.together],
+    [t("投票"), hot.votes],
+    [t("新加入"), hot.fresh],
   ];
   return (
     <div className="space-y-2">
       <p className="text-2xl font-bold">
         🔥 {hot.score}
-        <span className="ml-2 text-sm font-normal text-zinc-500">近 14 天，越近权重越高</span>
+        <span className="ml-2 text-sm font-normal text-zinc-500">
+          {t("近 14 天，越近权重越高")}
+        </span>
       </p>
-      <dl aria-label="热度构成" className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-4">
+      <dl
+        aria-label={t("热度构成")}
+        className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-4"
+      >
         {parts.map(([label, value]) => (
           <div key={label} className="flex justify-between gap-2 sm:block">
             <dt className="text-zinc-500">{label}</dt>
@@ -401,6 +422,7 @@ function ResultList({
   empty: string;
   onAdd: (key: string) => Promise<FormState>;
 }) {
+  const t = useT();
   const [pending, start] = useTransition();
   const [busy, setBusy] = useState<string>();
   const [error, setError] = useState<string>();
@@ -426,12 +448,12 @@ function ResultList({
               )}
             </div>
             {r.added ? (
-              <span className="text-xs text-zinc-500">已在库中</span>
+              <span className="text-xs text-zinc-500">{t("已在库中")}</span>
             ) : (
               <Button
                 type="button"
                 className="px-3 py-1.5"
-                aria-label={`添加 ${r.name}`}
+                aria-label={t("添加 {name}", { name: r.name })}
                 disabled={pending}
                 onClick={() => {
                   setBusy(r.key);
@@ -442,7 +464,7 @@ function ResultList({
                   });
                 }}
               >
-                {busy === r.key ? "添加中…" : "添加"}
+                {busy === r.key ? t("添加中…") : t("添加")}
               </Button>
             )}
           </li>
@@ -457,13 +479,13 @@ type Source = "steam" | "igdb";
 const SOURCES: Record<Source, { tab: string; label: string; placeholder: string }> = {
   steam: {
     tab: "Steam",
-    label: "搜索 Steam 或粘贴链接",
-    placeholder: "搜索 Steam，或粘贴 Steam 商店链接",
+    label: msg("搜索 Steam 或粘贴链接"),
+    placeholder: msg("搜索 Steam，或粘贴 Steam 商店链接"),
   },
   igdb: {
-    tab: "其他平台（IGDB）",
-    label: "搜索 IGDB",
-    placeholder: "搜索 EA、Battle.net、主机等平台的游戏（英文名更准）",
+    tab: msg("其他平台（IGDB）"),
+    label: msg("搜索 IGDB"),
+    placeholder: msg("搜索 EA、Battle.net、主机等平台的游戏（英文名更准）"),
   },
 };
 
@@ -477,6 +499,8 @@ export function AddGamePanel({
   igdb: boolean;
   roundId?: string;
 }) {
+  const locale = useLocale();
+  const t = useT();
   const [source, setSource] = useState<Source>("steam");
   const [query, setQuery] = useState("");
   const [steam, setSteam] = useState<SteamLookup>();
@@ -503,9 +527,9 @@ export function AddGamePanel({
   return (
     <section className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-semibold">{roundId ? "添加新游戏为候选" : "添加游戏"}</h2>
+        <h2 className="font-semibold">{roundId ? t("添加新游戏为候选") : t("添加游戏")}</h2>
         {igdb && (
-          <div role="tablist" aria-label="游戏来源" className="flex gap-1 text-sm">
+          <div role="tablist" aria-label={t("游戏来源")} className="flex gap-1 text-sm">
             {(Object.keys(SOURCES) as Source[]).map((s) => (
               <button
                 key={s}
@@ -519,7 +543,7 @@ export function AddGamePanel({
                     : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
                 }`}
               >
-                {SOURCES[s].tab}
+                {t(SOURCES[s].tab)}
               </button>
             ))}
           </div>
@@ -544,29 +568,29 @@ export function AddGamePanel({
         }}
       >
         <input
-          aria-label={SOURCES[source].label}
-          placeholder={SOURCES[source].placeholder}
+          aria-label={t(SOURCES[source].label)}
+          placeholder={t(SOURCES[source].placeholder)}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           className={textareaClass}
         />
         <Button disabled={pending || !query.trim()} className="shrink-0">
-          {pending ? "查找中…" : "查找"}
+          {pending ? t("查找中…") : t("查找")}
         </Button>
       </form>
       {notice && <Alert kind="ok">{notice}</Alert>}
       {error && <Alert kind="error">{error}</Alert>}
       {source === "steam" && steam && (
         <ResultList
-          label="Steam 搜索结果"
-          empty="Steam 上没有找到相关游戏，可以试试英文名、其他平台搜索，或手动添加。"
+          label={t("Steam 搜索结果")}
+          empty={t("Steam 上没有找到相关游戏，可以试试英文名、其他平台搜索，或手动添加。")}
           items={steam.results.map((r) => ({
             key: r.appId,
             name: r.name,
             imageUrl: r.imageUrl,
             detail:
               r.priceFinal !== null && r.priceCurrency
-                ? formatPrice(r.priceFinal, r.priceCurrency)
+                ? formatPrice(r.priceFinal, r.priceCurrency, intlLocale(locale))
                 : null,
             // As candidates, library games can still be nominated.
             added: !roundId && steam.inLibrary.includes(r.appId),
@@ -583,14 +607,14 @@ export function AddGamePanel({
       )}
       {source === "igdb" && igdbLookup && (
         <ResultList
-          label="IGDB 搜索结果"
-          empty="IGDB 上没有找到相关游戏，可以试试英文名，或手动添加。"
+          label={t("IGDB 搜索结果")}
+          empty={t("IGDB 上没有找到相关游戏，可以试试英文名，或手动添加。")}
           items={igdbLookup.results.map((r) => ({
             key: r.igdbId,
             name: r.name,
             imageUrl: r.imageUrl,
             detail: [r.year, r.platforms.join(" · ")].filter(Boolean).join("　") || null,
-            note: r.steamAppId ? "Steam 上也有，将按 Steam 版添加" : undefined,
+            note: r.steamAppId ? t("Steam 上也有，将按 Steam 版添加") : undefined,
             added: !roundId && igdbLookup.inLibrary.includes(r.igdbId),
           }))}
           onAdd={async (igdbId) =>
@@ -613,7 +637,7 @@ export function AddGamePanel({
           }}
           className="text-sm text-indigo-600 hover:underline"
         >
-          {manual ? "收起手动添加" : "都找不到？手动添加"}
+          {manual ? t("收起手动添加") : t("都找不到？手动添加")}
         </button>
         {manual && (
           <div className="mt-3">
@@ -657,6 +681,7 @@ export function ManualGameForm({
   roundId?: string;
   onSaved?: () => void;
 }) {
+  const t = useT();
   const action = game
     ? updateManualGameAction.bind(null, groupId, game.id)
     : roundId
@@ -673,49 +698,49 @@ export function ManualGameForm({
   return (
     <form key={formKey} action={formAction} className="space-y-3">
       <Status state={state} />
-      <Field label="游戏名" name="name" required maxLength={100} defaultValue={game?.name} />
+      <Field label={t("游戏名")} name="name" required maxLength={100} defaultValue={game?.name} />
       <Field
-        label="平台 / 启动器"
+        label={t("平台 / 启动器")}
         name="platforms"
-        hint="逗号分隔，如 EA App, PC"
+        hint={t("逗号分隔，如 EA App, PC")}
         defaultValue={game?.platforms.join(", ")}
       />
       <Field
-        label="类型"
+        label={t("类型")}
         name="genres"
-        hint="逗号分隔，如 射击, 战术"
+        hint={t("逗号分隔，如 射击, 战术")}
         defaultValue={game?.genres.join(", ")}
       />
       <Field
-        label="游玩方式"
+        label={t("游玩方式")}
         name="features"
-        hint="逗号分隔，如 多人, 在线合作"
+        hint={t("逗号分隔，如 多人, 在线合作")}
         defaultValue={game?.features.join(", ")}
       />
       <Field
-        label="封面图片地址"
+        label={t("封面图片地址")}
         name="coverUrl"
         type="url"
-        hint="可选，https:// 开头"
+        hint={t("可选，https:// 开头")}
         defaultValue={game?.coverUrl ?? ""}
       />
       <Field
-        label="商店 / 官网链接"
+        label={t("商店 / 官网链接")}
         name="storeUrl"
         type="url"
-        hint="可选"
+        hint={t("可选")}
         defaultValue={game?.storeUrl ?? ""}
       />
       <TextArea
-        label="简介"
+        label={t("简介")}
         name="description"
         rows={3}
         maxLength={2000}
-        hint="可选"
+        hint={t("可选")}
         defaultValue={game?.description}
       />
       <Button disabled={pending}>
-        {game ? "保存修改" : roundId ? "添加为候选" : "添加到游戏库"}
+        {game ? t("保存修改") : roundId ? t("添加为候选") : t("添加到游戏库")}
       </Button>
     </form>
   );
@@ -731,6 +756,7 @@ export function GameDetailActions({
   game: Game;
   canManage: boolean;
 }) {
+  const t = useT();
   const [editing, setEditing] = useState(false);
   const [state, setState] = useState<FormState>();
   const [pending, start] = useTransition();
@@ -747,12 +773,12 @@ export function GameDetailActions({
             disabled={pending}
             onClick={() => run(() => refreshGameAction(groupId, game.id))}
           >
-            从 {game.source === "IGDB" ? "IGDB" : "Steam"} 刷新资料
+            {t("从 {source} 刷新资料", { source: game.source === "IGDB" ? "IGDB" : "Steam" })}
           </Button>
         )}
         {canManage && game.source === "MANUAL" && (
           <Button type="button" variant="secondary" onClick={() => setEditing((e) => !e)}>
-            {editing ? "取消编辑" : "编辑"}
+            {editing ? t("取消编辑") : t("编辑")}
           </Button>
         )}
         {canManage && (
@@ -761,11 +787,11 @@ export function GameDetailActions({
             variant="ghost"
             disabled={pending}
             onClick={() => {
-              if (!confirm(`把《${game.name}》移出游戏库？`)) return;
+              if (!confirm(t("把《{name}》移出游戏库？", { name: game.name }))) return;
               run(() => removeFromLibraryAction(groupId, game.id));
             }}
           >
-            移出游戏库
+            {t("移出游戏库")}
           </Button>
         )}
       </div>
@@ -777,12 +803,19 @@ export function GameDetailActions({
 }
 
 export function AddedBy({ entry }: { entry: LibraryEntry }) {
+  const t = useT();
   return (
     <p className="flex items-center gap-2 text-sm text-zinc-500">
       {entry.addedBy && (
         <Avatar src={entry.addedBy.avatarUrl} name={entry.addedBy.displayName} size={20} />
       )}
-      {entry.addedBy?.displayName ?? "已注销用户"} 于 <LocalDate value={entry.addedAt} /> 添加
+      <Trans
+        text="{who} 于 {date} 添加"
+        values={{
+          who: entry.addedBy?.displayName ?? t("已注销用户"),
+          date: <LocalDate value={entry.addedAt} />,
+        }}
+      />
     </p>
   );
 }

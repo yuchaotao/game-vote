@@ -26,6 +26,7 @@ export function AutoRefresh({ seconds = 60 }: { seconds?: number }) {
 
 /** Minutes since `since`, ticking; rendered after mount to avoid clock skew. */
 function Elapsed({ since }: { since: Date }) {
+  const t = useT();
   const [now, setNow] = useState<number | null>(null);
   useEffect(() => {
     setNow(Date.now());
@@ -33,7 +34,7 @@ function Elapsed({ since }: { since: Date }) {
     return () => clearInterval(t);
   }, []);
   if (now === null) return null;
-  return <>{formatDuration(now - new Date(since).getTime())}</>;
+  return <>{formatDuration(now - new Date(since).getTime(), t)}</>;
 }
 
 export function PresenceBadge({ presence }: { presence?: Presence }) {
@@ -136,7 +137,7 @@ export function TogetherList({
             </div>
           </div>
           <span className="shrink-0 text-sm font-medium">
-            {formatDuration(new Date(row.end).getTime() - new Date(row.start).getTime())}
+            {formatDuration(new Date(row.end).getTime() - new Date(row.start).getTime(), t)}
           </span>
         </li>
       ))}
@@ -166,7 +167,7 @@ export function PlayTotals({
             />
           </span>
           <span className="w-28 shrink-0 text-right text-zinc-600 dark:text-zinc-400">
-            {formatDuration(ms)}
+            {formatDuration(ms, t)}
           </span>
         </li>
       ))}

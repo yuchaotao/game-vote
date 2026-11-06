@@ -1,3 +1,5 @@
+import { translator, type T } from "@/lib/i18n";
+
 // Pure play-detection logic: turning Steam status polls into sessions, and
 // sessions into "played together" segments. No I/O here.
 
@@ -160,11 +162,11 @@ export function clip(sessions: Interval[], from: number, to: number): Interval[]
     .filter((s) => s.end > s.start);
 }
 
-export function formatDuration(ms: number): string {
+export function formatDuration(ms: number, t: T = translator("zh")): string {
   const minutes = Math.floor(ms / 60_000);
-  if (minutes < 1) return "不到 1 分钟";
+  if (minutes < 1) return t("不到 1 分钟");
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
-  if (h === 0) return `${m} 分钟`;
-  return m === 0 ? `${h} 小时` : `${h} 小时 ${m} 分钟`;
+  if (h === 0) return t("{n} 分钟", { n: m });
+  return m === 0 ? t("{n} 小时", { n: h }) : t("{h} 小时 {m} 分钟", { h, m });
 }

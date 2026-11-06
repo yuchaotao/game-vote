@@ -50,3 +50,31 @@ test("signed-in pages in English: friends, groups, chat, settings", async ({ bro
   await expect(page.getByRole("checkbox", { name: "New vote · Email" })).not.toBeChecked();
   await expect(page.getByLabel("Default home page")).toBeVisible();
 });
+
+test("votes and the game library in English", async ({ browser }) => {
+  const { owner, path } = await groupOfTwo(browser);
+  const page = owner.page;
+  await page
+    .context()
+    .addCookies([{ name: "gv_locale", value: "en", url: "http://localhost:3000" }]);
+
+  await page.goto(`${path}/games`);
+  await page.getByRole("textbox", { name: "Search Steam or paste a link" }).fill("apex");
+  await page.getByRole("button", { name: "Search", exact: true }).click();
+  await page.getByRole("button", { name: "Add Apex Legends™" }).click();
+  await expect(page.getByRole("region", { name: "Game list" })).toContainText("Apex Legends™");
+
+  await page.goto(`${path}/votes`);
+  await expect(page.getByLabel("Anonymous vote")).toBeChecked();
+  await expect(page.getByLabel("Votes per person")).toHaveValue("2");
+  await expect(page.getByLabel("Attempts per round")).toHaveValue("5");
+  await page.getByRole("button", { name: "Start a vote" }).click();
+  await expect(page).toHaveURL(/\/votes\/\w+$/, { timeout: 30_000 });
+  await expect(page.getByRole("heading", { name: "Round 1" })).toBeVisible();
+  await expect(page.getByText("Anonymous, in progress")).toBeVisible();
+  await expect(page.getByRole("button", { name: "🎲 Gamble · 5 left" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "😈 Switcheroo · 5 left" })).toBeDisabled();
+  await page.getByRole("button", { name: "Add all (1)" }).click();
+  await expect(page.getByRole("button", { name: "Add a vote for Apex Legends™" })).toBeEnabled();
+  await page.screenshot({ path: "test-results/screens/round-english.png", fullPage: true });
+});

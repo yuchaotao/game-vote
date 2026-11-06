@@ -1,3 +1,5 @@
+import { msg } from "@/lib/i18n";
+
 // Gambling in anonymous rounds (#57): 赌一把 (a chance to peek) and 偷梁换柱 (a chance
 // to switch someone's vote). Pure: shared by the server and the coin icon.
 
@@ -14,12 +16,12 @@ export const wins = (luck: number, roll: number) => roll < luck;
 export type CoinTier = "rusty" | "copper" | "silver" | "gold" | "shining" | "rainbow";
 
 export const COIN_LABEL: Record<CoinTier, string> = {
-  rusty: "生锈的铜币",
-  copper: "铜币",
-  silver: "银币",
-  gold: "金币",
-  shining: "闪耀金币",
-  rainbow: "彩虹幸运币",
+  rusty: msg("生锈的铜币"),
+  copper: msg("铜币"),
+  silver: msg("银币"),
+  gold: msg("金币"),
+  shining: msg("闪耀金币"),
+  rainbow: msg("彩虹幸运币"),
 };
 
 export function coinTier(luck: number): CoinTier {

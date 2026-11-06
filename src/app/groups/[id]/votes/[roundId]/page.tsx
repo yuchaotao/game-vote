@@ -17,14 +17,20 @@ import { getGroupForMember } from "@/lib/groups/service";
 import { exposures, myGambles, takePeek } from "@/lib/votes/gamble";
 import { endReasonText, resultsHidden } from "@/lib/votes/rules";
 import { firstRevealVisit, getRound, peekers, roundEvents } from "@/lib/votes/service";
+import { getT } from "@/lib/i18n/server";
+import { Trans } from "@/components/i18n";
 
-export const metadata = { title: "投票 · Game Vote" };
+export async function generateMetadata() {
+  const t = await getT();
+  return { title: `${t("投票")} · Game Vote` };
+}
 
 export default async function RoundPage({
   params,
 }: {
   params: Promise<{ id: string; roundId: string }>;
 }) {
+  const t = await getT();
   const { id, roundId } = await params;
   const user = await requireUser();
   const group = await getGroupForMember(id, user.id);
@@ -86,7 +92,9 @@ export default async function RoundPage({
     .filter((e) => !byGame.has(e.gameId))
     .map((e) => ({ id: e.gameId, name: e.game.name }));
 
-  const label = `第 ${round.number} 轮${round.title ? `《${round.title}》` : "投票"}`;
+  const label = round.title
+    ? t("第 {n} 轮《{title}》", { n: round.number, title: round.title })
+    : t("第 {n} 轮投票", { n: round.number });
   const voters = new Set(round.ballots.map((b) => b.userId)).size;
   const peekNames = peeked.map((p) => p.user.displayName).join("、");
 
@@ -94,7 +102,7 @@ export default async function RoundPage({
     <div className="space-y-6">
       {celebrate && <RevealConfetti delaySeconds={(items.length - 1) * 0.45 + 0.3} />}
       <Link href={`/groups/${id}/votes`} className="text-sm text-zinc-500 hover:underline">
-        ← 全部投票
+        {t("← 全部投票")}
       </Link>
 
       <Card className="space-y-4">
@@ -102,13 +110,20 @@ export default async function RoundPage({
           <div>
             <h2 className="text-xl font-bold">{label}</h2>
             <p className="text-sm text-zinc-500">
-              {round.startedBy?.displayName ?? "某人"} 于 <LocalDate value={round.startedAt} /> 发起
-              · 每人最多 {round.maxVotes} 票{round.repeatVotes ? "（可重复投同一个游戏）" : ""} ·{" "}
-              {voters} / {group.members.length} 人已投
+              <Trans
+                text="{who} 于 {date} 发起"
+                values={{
+                  who: round.startedBy?.displayName ?? t("某人"),
+                  date: <LocalDate value={round.startedAt} />,
+                }}
+              />{" "}
+              · {t("每人最多 {n} 票", { n: round.maxVotes })}
+              {round.repeatVotes ? t("（可重复投同一个游戏）") : ""} ·{" "}
+              {t("{voted} / {total} 人已投", { voted: voters, total: group.members.length })}
             </p>
             {open && round.deadline && (
               <p className="text-sm text-amber-700 dark:text-amber-400">
-                {round.anonymous ? "🙈 匿名投票 · " : ""}
+                {round.anonymous ? t("🙈 匿名投票 · ") : ""}
                 <Deadline at={round.deadline} />
               </p>
             )}
@@ -122,24 +137,26 @@ export default async function RoundPage({
           >
             {open
               ? round.anonymous
-                ? "匿名进行中"
-                : "进行中"
+                ? t("匿名进行中")
+                : t("进行中")
               : round.anonymous
-                ? "已揭榜"
-                : "已结束"}
+                ? t("已揭榜")
+                : t("已结束")}
           </span>
         </div>
 
         {open && round.anonymous && (
           <section
-            aria-label="匿名投票"
+            aria-label={t("匿名投票")}
             className="space-y-2 rounded-lg bg-zinc-50 p-3 text-sm dark:bg-zinc-800/50"
           >
             {peekNow ? (
-              <p>🎲 赌赢了！这些结果只显示这一次，刷新或离开后会重新隐藏，没人知道你看过。</p>
+              <p>
+                {t("🎲 赌赢了！这些结果只显示这一次，刷新或离开后会重新隐藏，没人知道你看过。")}
+              </p>
             ) : hidden ? (
               <>
-                <p>🙈 揭榜前不显示票数和排名，到点自动揭晓。你投了哪些只有你自己看得到。</p>
+                <p>{t("🙈 揭榜前不显示票数和排名，到点自动揭晓。你投了哪些只有你自己看得到。")}</p>
                 <GambleActions
                   groupId={id}
                   roundId={roundId}
@@ -151,11 +168,15 @@ export default async function RoundPage({
                 />
               </>
             ) : (
-              <p>👀 你偷看了结果，群里的人都知道了。</p>
+              <p>{t("👀 你偷看了结果，群里的人都知道了。")}</p>
             )}
-            {peekNames && <p className="text-xs text-zinc-500">👀 偷看过：{peekNames}</p>}
+            {peekNames && (
+              <p className="text-xs text-zinc-500">
+                {t("👀 偷看过：{names}", { names: peekNames })}
+              </p>
+            )}
             {exposed.length > 0 && (
-              <ul aria-label="被抓到的小动作" className="space-y-0.5 text-xs text-zinc-500">
+              <ul aria-label={t("被抓到的小动作")} className="space-y-0.5 text-xs text-zinc-500">
                 {exposed.map((line, i) => (
                   <li key={i}>{line}</li>
                 ))}
@@ -183,15 +204,16 @@ export default async function RoundPage({
                   className="h-12 w-[103px] rounded text-base"
                 />
                 <p>
-                  🏆 胜出：<strong>{round.winner.name}</strong>
+                  {t("🏆 胜出：")}
+                  <strong>{round.winner.name}</strong>
                 </p>
               </>
             ) : (
-              <p>没有人投票</p>
+              <p>{t("没有人投票")}</p>
             )}
             <p className="ml-auto text-xs text-zinc-500">
               {round.endedBy && `${round.endedBy.displayName} · `}
-              {round.endReason && endReasonText(round.endReason, round.anonymous)}
+              {round.endReason && t(endReasonText(round.endReason, round.anonymous))}
               {round.endedAt && (
                 <>
                   {" · "}
@@ -202,10 +224,12 @@ export default async function RoundPage({
           </div>
         )}
         {!open && peekNames && (
-          <p className="text-xs text-zinc-500">👀 揭榜前偷看过：{peekNames}</p>
+          <p className="text-xs text-zinc-500">
+            {t("👀 揭榜前偷看过：{names}", { names: peekNames })}
+          </p>
         )}
         {!open && exposed.length > 0 && (
-          <ul aria-label="被抓到的小动作" className="space-y-0.5 text-xs text-zinc-500">
+          <ul aria-label={t("被抓到的小动作")} className="space-y-0.5 text-xs text-zinc-500">
             {exposed.map((line, i) => (
               <li key={i}>{line}</li>
             ))}
@@ -229,7 +253,7 @@ export default async function RoundPage({
       {open && (
         <>
           <Card className="space-y-3">
-            <h3 className="font-semibold">从游戏库添加候选</h3>
+            <h3 className="font-semibold">{t("从游戏库添加候选")}</h3>
             <AddFromLibrary groupId={id} roundId={roundId} games={notCandidates} />
           </Card>
           <AddGamePanel groupId={id} igdb={igdbEnabled()} roundId={roundId} />
@@ -238,7 +262,7 @@ export default async function RoundPage({
 
       {!open && (
         <Card className="space-y-3">
-          <h3 className="font-semibold">投票回放</h3>
+          <h3 className="font-semibold">{t("投票回放")}</h3>
           <RoundReplay
             events={events}
             users={Object.fromEntries(group.members.map((m) => [m.user.id, m.user.displayName]))}
