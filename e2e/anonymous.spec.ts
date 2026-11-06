@@ -50,12 +50,18 @@ test("anonymous by default: hidden until revealed; the reveal plays once", async
   await owner.page.reload();
   await expect(board(owner.page)).not.toContainText(/\d+ 票/);
 
-  // Reveal time: the round ends and everyone sees the result.
+  // Reveal time: the round ends and everyone sees the result. The friend has left
+  // the round's page; the owner still has it open.
+  await friend.page.goto(path);
   await db.voteRound.update({
     where: { id: roundId },
     data: { deadline: new Date(Date.now() - 1000) },
   });
   execFileSync("npx", ["tsx", "src/worker/run-once.ts", "close-due-rounds"], { stdio: "pipe" });
+
+  // On a page left open, the reveal arrives live, with the whole effect.
+  await expect(board(owner.page).locator("li[data-winner]")).toHaveClass(/reveal-winner/);
+  await expect(owner.page.locator("[data-reveal-confetti]")).toHaveCount(1);
 
   // The first look plays the reveal: confetti and the winner's entrance.
   await friend.page.goto(roundUrl);
