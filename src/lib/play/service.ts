@@ -17,8 +17,9 @@ import {
   type Interval,
 } from "./rules";
 import { getSteamPresence } from "./steam-presence";
+import { LocalizedError } from "@/lib/i18n";
 
-export class PlayError extends Error {}
+export class PlayError extends LocalizedError {}
 
 const DAY_MS = 24 * 60 * 60_000;
 /** Steam online state / profile visibility, kept a little longer than one poll interval. */

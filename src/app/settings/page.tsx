@@ -89,8 +89,8 @@ export default async function SettingsPage({
   const t = await getT();
   const user = await requireUser();
   const params = await searchParams;
-  const error = pick(AUTH_ERRORS, params.error);
-  const linked = pick(LINKED_MESSAGES, params.linked);
+  const error = pick(AUTH_ERRORS, params.error, t);
+  const linked = pick(LINKED_MESSAGES, params.linked, t);
   const [presence, lastSteam, notifications, groups] = await Promise.all([
     presenceFor([user.id]).then((p) => p[user.id]),
     lastSteamSession(user.id),

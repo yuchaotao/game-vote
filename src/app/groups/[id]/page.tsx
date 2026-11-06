@@ -170,7 +170,7 @@ export default async function GroupMembersPage({ params }: { params: Promise<{ i
                 : null
             }
             options={channels && "options" in channels ? channels.options : null}
-            unavailable={channels && "error" in channels ? channels.error : undefined}
+            unavailable={channels && "error" in channels ? t(channels.error) : undefined}
             last={lastPost}
           />
         </Card>

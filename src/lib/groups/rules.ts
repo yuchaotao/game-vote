@@ -1,8 +1,9 @@
 import { z } from "zod";
+import { msg } from "@/lib/i18n";
 
 export const groupInfoSchema = z.object({
-  name: z.string().trim().min(1, "群名不能为空").max(40, "群名最多 40 个字符"),
-  description: z.string().trim().max(500, "简介最多 500 个字符").default(""),
+  name: z.string().trim().min(1, msg("群名不能为空")).max(40, msg("群名最多 40 个字符")),
+  description: z.string().trim().max(500, msg("简介最多 500 个字符")).default(""),
 });
 
 export type InviteOutcome =

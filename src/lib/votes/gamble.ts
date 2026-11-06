@@ -4,6 +4,7 @@ import { postSystemMessage } from "@/lib/chat/service";
 import { db } from "@/lib/db";
 import { nextLuck, swapOptions, wins } from "./gamble-rules";
 import { notifyChanged, openRound, VoteError } from "./service";
+import { msg } from "@/lib/i18n";
 
 // 赌一把 and 偷梁换柱 (#57): a few attempts each per member per anonymous round
 // (the round's gambleLimit, #59), won with the member's lucky coin; losing is
@@ -14,7 +15,10 @@ async function nameOf(userId: string): Promise<string> {
   return u?.displayName ?? "某人";
 }
 
-const NAME: Record<VoteGambleKind, string> = { PEEK: "赌一把", SWAP: "偷梁换柱" };
+const USED_UP: Record<VoteGambleKind, string> = {
+  PEEK: msg("这一轮的 {limit} 次赌一把已经用完了"),
+  SWAP: msg("这一轮的 {limit} 次偷梁换柱已经用完了"),
+};
 
 async function begin(groupId: string, roundId: string) {
   const round = await openRound(groupId, roundId);
@@ -36,7 +40,7 @@ async function claim(
   await tx.$queryRaw`SELECT id FROM "VoteRound" WHERE id = ${round.id} FOR UPDATE`;
   const used = await tx.voteGamble.count({ where: { roundId: round.id, userId, kind } });
   if (used >= round.gambleLimit) {
-    throw new VoteError(`这一轮的 ${round.gambleLimit} 次${NAME[kind]}已经用完了`);
+    throw new VoteError(USED_UP[kind], { limit: round.gambleLimit });
   }
   const { luck } = await tx.groupMember.findUniqueOrThrow({
     where: { groupId_userId: { groupId: round.groupId, userId } },

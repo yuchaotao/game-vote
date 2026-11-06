@@ -18,6 +18,14 @@ test("English pages when the language cookie says so", async ({ browser }) => {
   await expect(page.getByRole("link", { name: "Log in with Steam" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Log in", exact: true })).toBeVisible();
 
+  await page.locator('input[name="identifier"]').fill("nobody_here");
+  await page.locator('input[name="password"]').fill("not-the-password");
+  await page.getByRole("button", { name: "Log in", exact: true }).click();
+  await expect(page.getByText("Wrong username/email or password")).toBeVisible();
+
+  await page.goto("/?error=steam_failed");
+  await expect(page.getByText("Steam verification failed. Please try again.")).toBeVisible();
+
   await page.goto("/register");
   await expect(page.getByRole("heading", { name: "Sign up" })).toBeVisible();
   await expect(page.getByLabel("Username")).toBeVisible();

@@ -21,13 +21,16 @@ import {
   transferOwnership,
   updateGroupInfo,
 } from "./service";
+import { msg } from "@/lib/i18n";
+import { getT } from "@/lib/i18n/server";
 
 /** Runs a group operation, turning domain errors into form errors. */
 async function attempt(fn: () => Promise<FormState | void>): Promise<FormState> {
+  const t = await getT();
   try {
-    return (await fn()) ?? { ok: "已完成" };
+    return (await fn()) ?? { ok: t("已完成") };
   } catch (err) {
-    if (err instanceof GroupError) return { error: err.message };
+    if (err instanceof GroupError) return { error: err.localize(t) };
     throw err;
   }
 }
@@ -39,11 +42,12 @@ function refresh(groupId?: string) {
 }
 
 export async function createGroupAction(_: FormState, form: FormData): Promise<FormState> {
+  const t = await getT();
   const user = await requireUser();
   const parsed = groupInfoSchema.safeParse(Object.fromEntries(form));
-  if (!parsed.success) return { error: firstError(parsed.error) };
+  if (!parsed.success) return { error: firstError(parsed.error, t) };
   if (!(await rateLimit(`group-create:${user.id}`, 10, 3600))) {
-    return { error: "创建过于频繁，请稍后再试" };
+    return { error: t("创建过于频繁，请稍后再试") };
   }
   const group = await createGroup(user.id, parsed.data);
   refresh();
@@ -51,11 +55,11 @@ export async function createGroupAction(_: FormState, form: FormData): Promise<F
 }
 
 const OUTCOME_TEXT: Record<InviteOutcome, string> = {
-  added: "已加入群",
-  requested: "已提交，等待群主确认",
-  "already-member": "已经是群成员",
-  "already-pending": "已有待审批的申请",
-  "not-friend": "不是你的好友",
+  added: msg("已加入群"),
+  requested: msg("已提交，等待群主确认"),
+  "already-member": msg("已经是群成员"),
+  "already-pending": msg("已有待审批的申请"),
+  "not-friend": msg("不是你的好友"),
 };
 
 export async function inviteToGroupAction(
@@ -63,9 +67,10 @@ export async function inviteToGroupAction(
   _: FormState,
   form: FormData,
 ): Promise<FormState> {
+  const t = await getT();
   const user = await requireUser();
   const ids = form.getAll("userId").map(String);
-  if (ids.length === 0) return { error: "请选择要邀请的好友" };
+  if (ids.length === 0) return { error: t("请选择要邀请的好友") };
   return attempt(async () => {
     const results = await inviteToGroup(groupId, user.id, ids);
     refresh(groupId);
@@ -73,8 +78,10 @@ export async function inviteToGroupAction(
       where: { id: { in: Object.keys(results) } },
       select: { id: true, displayName: true },
     });
-    const lines = users.map((u) => `${u.displayName}：${OUTCOME_TEXT[results[u.id]]}`);
-    return { ok: lines.join("；") };
+    const lines = users.map((u) =>
+      t("{name}：{outcome}", { name: u.displayName, outcome: t(OUTCOME_TEXT[results[u.id]]) }),
+    );
+    return { ok: lines.join(t("；")) };
   });
 }
 
@@ -125,13 +132,14 @@ export async function updateGroupInfoAction(
   _: FormState,
   form: FormData,
 ): Promise<FormState> {
+  const t = await getT();
   const user = await requireUser();
   const parsed = groupInfoSchema.safeParse(Object.fromEntries(form));
-  if (!parsed.success) return { error: firstError(parsed.error) };
+  if (!parsed.success) return { error: firstError(parsed.error, t) };
   return attempt(async () => {
     await updateGroupInfo(groupId, user.id, parsed.data);
     refresh(groupId);
-    return { ok: "已保存" };
+    return { ok: t("已保存") };
   });
 }
 
@@ -156,6 +164,7 @@ export async function setDiscordChannelAction(
   _: FormState,
   form: FormData,
 ): Promise<FormState> {
+  const t = await getT();
   const user = await requireUser();
   const channelId = String(form.get("channelId") ?? "") || null;
   const result = await attempt(() => setDiscordChannel(groupId, user.id, channelId));
@@ -163,7 +172,7 @@ export async function setDiscordChannelAction(
   refresh(groupId);
   return {
     ok: channelId
-      ? "已连接 Discord 频道，机器人在频道里发了一条确认消息"
-      : "已取消 Discord 频道通知",
+      ? t("已连接 Discord 频道，机器人在频道里发了一条确认消息")
+      : t("已取消 Discord 频道通知"),
   };
 }

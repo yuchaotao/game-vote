@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { isActiveMember, latestActiveGroupId } from "@/lib/groups/service";
 import { groupOf, isGroupTab, rememberable } from "./rules";
+import { LocalizedError } from "@/lib/i18n";
 
 /**
  * Where "/" sends a signed-in user: their chosen home page, else the last page
@@ -21,7 +22,7 @@ export async function homeTarget(
   return groupId ? `/groups/${groupId}/chat` : null;
 }
 
-export class HomePageError extends Error {}
+export class HomePageError extends LocalizedError {}
 
 /** Sets the default home page: a tab of one of the user's groups, or null for the last visited. */
 export async function setHomePath(userId: string, path: string | null) {

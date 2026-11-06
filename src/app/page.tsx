@@ -23,7 +23,7 @@ export default async function Home({
     const params = await searchParams;
     return (
       <Landing>
-        <LoginPanel title="登录" level={2} error={pick(AUTH_ERRORS, params.error)} />
+        <LoginPanel title="登录" level={2} error={pick(AUTH_ERRORS, params.error, t)} />
       </Landing>
     );
   }

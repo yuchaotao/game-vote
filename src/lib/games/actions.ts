@@ -24,20 +24,20 @@ import {
   type SteamLookup,
 } from "./service";
 import { parseSteamAppId } from "./steam-store";
-
-const NOT_MEMBER = { error: "你不是这个群的成员" };
+import { getT } from "@/lib/i18n/server";
 
 /** Runs a library operation for a group member, turning domain errors into form errors. */
 async function asMember<T>(
   groupId: string,
   fn: (userId: string) => Promise<T>,
 ): Promise<T | { error: string }> {
+  const t = await getT();
   const user = await requireUser();
-  if (!(await isActiveMember(groupId, user.id))) return NOT_MEMBER;
+  if (!(await isActiveMember(groupId, user.id))) return { error: t("你不是这个群的成员") };
   try {
     return await fn(user.id);
   } catch (err) {
-    if (err instanceof GameError) return { error: err.message };
+    if (err instanceof GameError) return { error: err.localize(t) };
     throw err;
   }
 }
@@ -50,8 +50,9 @@ export async function lookupSteamAction(
   groupId: string,
   raw: string,
 ): Promise<SteamLookup | { error: string }> {
+  const t = await getT();
   const query = raw.trim().slice(0, 200);
-  if (!query) return { error: "请输入游戏名或 Steam 链接" };
+  if (!query) return { error: t("请输入游戏名或 Steam 链接") };
   return asMember(groupId, async (userId) => {
     if (!(await rateLimit(`steam-lookup:${userId}`, 30, 60))) {
       throw new GameError("搜索太频繁了，请稍等");
@@ -62,14 +63,15 @@ export async function lookupSteamAction(
 }
 
 export async function addSteamGameAction(groupId: string, appId: string): Promise<FormState> {
-  if (!/^\d{1,10}$/.test(appId)) return { error: "无效的 Steam 游戏" };
+  const t = await getT();
+  if (!/^\d{1,10}$/.test(appId)) return { error: t("无效的 Steam 游戏") };
   return asMember(groupId, async (userId) => {
     if (!(await rateLimit(`game-add:${userId}`, 30, 600))) {
       throw new GameError("添加太频繁了，请稍后再试");
     }
     const game = await addSteamGame(groupId, userId, appId);
     refresh(groupId);
-    return { ok: `已添加《${game.name}》` };
+    return { ok: t("已添加《{name}》", { name: game.name }) };
   });
 }
 
@@ -77,8 +79,9 @@ export async function lookupIgdbAction(
   groupId: string,
   raw: string,
 ): Promise<IgdbLookup | { error: string }> {
+  const t = await getT();
   const term = raw.trim().slice(0, 100);
-  if (!term) return { error: "请输入游戏名" };
+  if (!term) return { error: t("请输入游戏名") };
   return asMember(groupId, async (userId) => {
     if (!(await rateLimit(`igdb-lookup:${userId}`, 30, 60))) {
       throw new GameError("搜索太频繁了，请稍等");
@@ -88,14 +91,19 @@ export async function lookupIgdbAction(
 }
 
 export async function addIgdbGameAction(groupId: string, igdbId: string): Promise<FormState> {
-  if (!/^\d{1,12}$/.test(igdbId)) return { error: "无效的 IGDB 游戏" };
+  const t = await getT();
+  if (!/^\d{1,12}$/.test(igdbId)) return { error: t("无效的 IGDB 游戏") };
   return asMember(groupId, async (userId) => {
     if (!(await rateLimit(`game-add:${userId}`, 30, 600))) {
       throw new GameError("添加太频繁了，请稍后再试");
     }
     const { game, viaSteam } = await addIgdbGame(groupId, userId, igdbId);
     refresh(groupId);
-    return { ok: viaSteam ? `已按 Steam 版添加《${game.name}》` : `已添加《${game.name}》` };
+    return {
+      ok: viaSteam
+        ? t("已按 Steam 版添加《{name}》", { name: game.name })
+        : t("已添加《{name}》", { name: game.name }),
+    };
   });
 }
 
@@ -104,15 +112,16 @@ export async function addManualGameAction(
   _: FormState,
   form: FormData,
 ): Promise<FormState> {
+  const t = await getT();
   const parsed = manualGameSchema.safeParse(Object.fromEntries(form));
-  if (!parsed.success) return { error: firstError(parsed.error) };
+  if (!parsed.success) return { error: firstError(parsed.error, t) };
   return asMember(groupId, async (userId) => {
     if (!(await rateLimit(`game-add:${userId}`, 30, 600))) {
       throw new GameError("添加太频繁了，请稍后再试");
     }
     const game = await addManualGame(groupId, userId, parsed.data);
     refresh(groupId);
-    return { ok: `已添加《${game.name}》` };
+    return { ok: t("已添加《{name}》", { name: game.name }) };
   });
 }
 
@@ -122,12 +131,13 @@ export async function updateManualGameAction(
   _: FormState,
   form: FormData,
 ): Promise<FormState> {
+  const t = await getT();
   const parsed = manualGameSchema.safeParse(Object.fromEntries(form));
-  if (!parsed.success) return { error: firstError(parsed.error) };
+  if (!parsed.success) return { error: firstError(parsed.error, t) };
   return asMember(groupId, async (userId) => {
     await updateManualGame(groupId, userId, gameId, parsed.data);
     refresh(groupId);
-    return { ok: "已保存" };
+    return { ok: t("已保存") };
   });
 }
 
@@ -141,6 +151,7 @@ export async function removeFromLibraryAction(groupId: string, gameId: string): 
 }
 
 export async function refreshGameAction(groupId: string, gameId: string): Promise<FormState> {
+  const t = await getT();
   return asMember(groupId, async (userId) => {
     if (!(await rateLimit(`game-refresh:${userId}`, 10, 600))) {
       throw new GameError("刷新太频繁了，请稍后再试");
@@ -150,8 +161,8 @@ export async function refreshGameAction(groupId: string, gameId: string): Promis
     const from = entry.game.source === "IGDB" ? "IGDB" : "Steam";
     const ok =
       entry.game.source === "IGDB" ? await refreshIgdbGame(gameId) : await refreshSteamGame(gameId);
-    if (!ok) throw new GameError(`${from} 暂时无法访问，请稍后再试`);
+    if (!ok) throw new GameError("{source} 暂时无法访问，请稍后再试", { source: from });
     refresh(groupId);
-    return { ok: `已从 ${from} 更新` };
+    return { ok: t("已从 {source} 更新", { source: from }) };
   });
 }

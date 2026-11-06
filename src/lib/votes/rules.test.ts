@@ -68,7 +68,8 @@ describe("canAdd", () => {
   it("never more than the votes each person has", () => {
     expect(canAdd({ ...base, used: 2, onThisGame: 2, repeat: true })).toEqual({
       ok: false,
-      error: "每人最多 2 票，先撤回一票再投",
+      error: "每人最多 {max} 票，先撤回一票再投",
+      params: { max: 2 },
     });
     expect(canAdd({ ...base, used: 2 }).ok).toBe(false);
     expect(canAdd({ ...base, isCandidate: false }).ok).toBe(false);
