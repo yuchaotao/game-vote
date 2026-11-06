@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { countIncomingRequests } from "@/lib/friends/service";
 import { countPendingApprovals } from "@/lib/groups/service";
 import { Avatar, buttonClass } from "./ui";
+import { getT } from "@/lib/i18n/server";
 
 function NavLink({
   href,
@@ -32,6 +33,7 @@ function NavLink({
 }
 
 export async function SiteHeader() {
+  const t = await getT();
   const user = await getCurrentUser();
   const [pendingRequests, pendingApprovals] = user
     ? await Promise.all([countIncomingRequests(user.id), countPendingApprovals(user.id)])
@@ -50,15 +52,15 @@ export async function SiteHeader() {
           <div className="flex items-center gap-1 sm:gap-2">
             <NavLink
               href="/groups"
-              label="群组"
+              label={t("群组")}
               badge={pendingApprovals}
-              badgeLabel={`${pendingApprovals} 个入群申请待审批`}
+              badgeLabel={t("{n} 个入群申请待审批", { n: pendingApprovals })}
             />
             <NavLink
               href="/friends"
-              label="好友"
+              label={t("好友")}
               badge={pendingRequests}
-              badgeLabel={`${pendingRequests} 个好友申请`}
+              badgeLabel={t("{n} 个好友申请", { n: pendingRequests })}
             />
             <Link
               href="/settings"
@@ -68,16 +70,16 @@ export async function SiteHeader() {
               <span className="hidden text-sm font-medium sm:inline">{user.displayName}</span>
             </Link>
             <form action={logout}>
-              <button className={buttonClass("ghost", "px-2 py-1")}>退出</button>
+              <button className={buttonClass("ghost", "px-2 py-1")}>{t("退出")}</button>
             </form>
           </div>
         ) : (
           <nav className="flex items-center gap-2">
             <Link href="/login" className={buttonClass("ghost", "px-3 py-1.5")}>
-              登录
+              {t("登录")}
             </Link>
             <Link href="/register" className={buttonClass("primary", "px-3 py-1.5")}>
-              注册
+              {t("注册")}
             </Link>
           </nav>
         )}

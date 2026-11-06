@@ -2,8 +2,12 @@ import { LoginPanel } from "@/components/login-panel";
 import { Card } from "@/components/ui";
 import { AUTH_ERRORS, pick } from "@/lib/auth/messages";
 import { safeNext } from "@/lib/friends/rules";
+import { getT } from "@/lib/i18n/server";
 
-export const metadata = { title: "登录 · Game Vote" };
+export async function generateMetadata() {
+  const t = await getT();
+  return { title: `${t("登录")} · Game Vote` };
+}
 
 export default async function LoginPage({
   searchParams,
