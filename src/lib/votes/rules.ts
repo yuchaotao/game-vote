@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { msg } from "@/lib/i18n";
+import { msg, type Params } from "@/lib/i18n";
 
 // Pure voting logic: round settings, tallies, ranking and replay frames.
 
@@ -9,15 +9,15 @@ export const MAX_TITLE = 60;
 
 export const roundSettingsSchema = z
   .object({
-    title: z.string().trim().max(MAX_TITLE, `标题最多 ${MAX_TITLE} 字`),
+    title: z.string().trim().max(MAX_TITLE, msg("标题最多 {max} 字")),
     // An empty field means the default.
     maxVotes: z.preprocess(
       (v) => (v === "" || v === null ? undefined : v),
       z.coerce
         .number()
         .int()
-        .min(1, "每人至少 1 票")
-        .max(10, "每人最多 10 票")
+        .min(1, msg("每人至少 1 票"))
+        .max(10, msg("每人最多 10 票"))
         .default(DEFAULT_MAX_VOTES),
     ),
     /** ISO timestamp from the browser (converted from its local time), or empty. */
@@ -28,7 +28,7 @@ export const roundSettingsSchema = z
         if (!v) return null;
         const d = new Date(v);
         if (Number.isNaN(d.getTime())) {
-          ctx.addIssue({ code: "custom", message: "截止时间无效" });
+          ctx.addIssue({ code: "custom", message: msg("截止时间无效") });
           return z.NEVER;
         }
         return d;
@@ -42,14 +42,18 @@ export const roundSettingsSchema = z
       z.coerce
         .number()
         .int()
-        .min(1, "每轮至少可以赌 1 次")
-        .max(20, "每轮最多 20 次")
+        .min(1, msg("每轮至少可以赌 1 次"))
+        .max(20, msg("每轮最多 20 次"))
         .default(DEFAULT_GAMBLE_LIMIT),
     ),
   })
   .superRefine((s, ctx) => {
     if (s.anonymous && !s.deadline) {
-      ctx.addIssue({ code: "custom", path: ["deadline"], message: "匿名投票需要设置揭榜时间" });
+      ctx.addIssue({
+        code: "custom",
+        path: ["deadline"],
+        message: msg("匿名投票需要设置揭榜时间"),
+      });
     }
   });
 
@@ -58,8 +62,8 @@ export type RoundSettings = z.infer<typeof roundSettingsSchema>;
 /** Deadline must be in the future and within 30 days. */
 export function deadlineError(deadline: Date | null, now = Date.now()): string | null {
   if (!deadline) return null;
-  if (deadline.getTime() <= now + 60_000) return "截止时间需要在至少 1 分钟之后";
-  if (deadline.getTime() > now + 30 * 24 * 60 * 60_000) return "截止时间不能超过 30 天";
+  if (deadline.getTime() <= now + 60_000) return msg("截止时间需要在至少 1 分钟之后");
+  if (deadline.getTime() > now + 30 * 24 * 60 * 60_000) return msg("截止时间不能超过 30 天");
   return null;
 }
 
@@ -175,7 +179,7 @@ export function replayFrames(events: ReplayEvent[]): ReplayFrame[] {
   });
 }
 
-export type ToggleCheck = { ok: true } | { ok: false; error: string };
+export type ToggleCheck = { ok: true } | { ok: false; error: string; params?: Params };
 
 /** Whether a user may cast one more vote. */
 /** Whether a member may put one more vote on a game. */
@@ -189,12 +193,15 @@ export function canAdd(o: {
   /** The round lets one person vote for a game more than once. */
   repeat: boolean;
 }): ToggleCheck {
-  if (!o.isCandidate) return { ok: false, error: "这个游戏不在候选里" };
-  if (!o.repeat && o.onThisGame > 0) return { ok: false, error: "已经投过这个游戏了" };
+  if (!o.isCandidate) return { ok: false, error: msg("这个游戏不在候选里") };
+  if (!o.repeat && o.onThisGame > 0) return { ok: false, error: msg("已经投过这个游戏了") };
   if (o.used >= o.maxVotes) {
     return {
       ok: false,
-      error: `每人最多 ${o.maxVotes} 票，先${o.repeat ? "撤回" : "取消"}一票再投`,
+      error: o.repeat
+        ? msg("每人最多 {max} 票，先撤回一票再投")
+        : msg("每人最多 {max} 票，先取消一票再投"),
+      params: { max: o.maxVotes },
     };
   }
   return { ok: true };

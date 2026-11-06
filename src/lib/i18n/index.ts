@@ -71,5 +71,26 @@ export const translator =
 /** Marks text to translate later (module constants); returns it unchanged. */
 export const msg = (text: string) => text;
 
+/**
+ * An error shown to people: `key` and `params` translate it where it is caught
+ * (`err.localize(t)`), and `message` is the Chinese text, for logs and Discord.
+ */
+export class LocalizedError extends Error {
+  constructor(
+    readonly key: string,
+    readonly params?: Params,
+    /** Params that are translation keys themselves. */
+    private readonly keyParams: string[] = [],
+  ) {
+    super(translate(DEFAULT_LOCALE, key, params));
+  }
+
+  localize(t: T): string {
+    const params = { ...this.params };
+    for (const name of this.keyParams) params[name] = t(String(params[name]));
+    return t(this.key, params);
+  }
+}
+
 /** For Intl and toLocale*: formats dates and numbers for the language. */
 export const intlLocale = (locale: Locale) => (locale === "zh" ? "zh-CN" : "en-US");

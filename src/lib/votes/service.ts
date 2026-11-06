@@ -20,8 +20,9 @@ import {
   type RoundSettings,
   type Standing,
 } from "./rules";
+import { LocalizedError } from "@/lib/i18n";
 
-export class VoteError extends Error {}
+export class VoteError extends LocalizedError {}
 
 const votesChannel = (groupId: string) => `group:${groupId}:votes`;
 
@@ -266,7 +267,8 @@ export async function addCandidate(
       db.voteEvent.create({ data: { roundId, gameId, userId, kind: VoteEventKind.CANDIDATE } }),
     ]);
   } catch (err) {
-    if (isUniqueViolation(err)) throw new VoteError(`《${entry.game.name}》已经是候选了`);
+    if (isUniqueViolation(err))
+      throw new VoteError("《{name}》已经是候选了", { name: entry.game.name });
     throw err;
   }
   await notifyChanged(groupId, roundId);
@@ -364,7 +366,7 @@ async function addOne(
     onThisGame: onGame(gameId),
     repeat: round.repeatVotes,
   });
-  if (!check.ok) throw new VoteError(check.error);
+  if (!check.ok) throw new VoteError(check.error, check.params);
   await tx.voteBallot.upsert({
     where: { roundId_userId_gameId: { roundId, userId, gameId } },
     create: { roundId, userId, gameId },

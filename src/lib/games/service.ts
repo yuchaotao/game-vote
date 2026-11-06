@@ -23,8 +23,9 @@ import {
   type IgdbGameResult,
   type IgdbSearchResult,
 } from "./igdb";
+import { LocalizedError, msg } from "@/lib/i18n";
 
-export class GameError extends Error {}
+export class GameError extends LocalizedError {}
 
 /** The game is already in this group's library (carries its id). */
 export class AlreadyInLibraryError extends GameError {
@@ -32,7 +33,7 @@ export class AlreadyInLibraryError extends GameError {
     public readonly gameId: string,
     name: string,
   ) {
-    super(`《${name}》已经在游戏库里了`);
+    super(msg("《{name}》已经在游戏库里了"), { name });
   }
 }
 
@@ -46,9 +47,9 @@ export function steamConfig(): SteamStoreConfig {
 }
 
 const STEAM_ERRORS: Record<Exclude<SteamAppResult, { ok: true }>["reason"], string> = {
-  "not-found": "在 Steam 上找不到这个游戏",
-  "not-a-game": "这不是游戏（可能是 DLC、原声或软件）",
-  unavailable: "Steam 暂时无法访问，请稍后再试",
+  "not-found": msg("在 Steam 上找不到这个游戏"),
+  "not-a-game": msg("这不是游戏（可能是 DLC、原声或软件）"),
+  unavailable: msg("Steam 暂时无法访问，请稍后再试"),
 };
 
 const libraryInclude = {
@@ -189,7 +190,7 @@ async function assertNameFree(groupId: string, name: string, exceptGameId?: stri
   });
   const wanted = normalizeGameName(name);
   if (entries.some((e) => normalizeGameName(e.game.name) === wanted)) {
-    throw new GameError(`游戏库里已经有《${name}》了`);
+    throw new GameError("游戏库里已经有《{name}》了", { name });
   }
 }
 
@@ -305,8 +306,8 @@ export const IGDB_METADATA_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const igdbTokenKey = (clientId: string) => `igdb:token:${clientId}`;
 
 const IGDB_ERRORS: Record<Exclude<IgdbGameResult, { ok: true }>["reason"], string> = {
-  "not-found": "在 IGDB 上找不到这个游戏",
-  unavailable: "IGDB 暂时无法访问，请稍后再试",
+  "not-found": msg("在 IGDB 上找不到这个游戏"),
+  unavailable: msg("IGDB 暂时无法访问，请稍后再试"),
 };
 
 /** Null when IGDB credentials aren't configured (the IGDB search is then hidden). */

@@ -14,12 +14,13 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const t = await getT();
   const params = await searchParams;
   return (
     <Card>
       <LoginPanel
         title="登录"
-        error={pick(AUTH_ERRORS, params.error)}
+        error={pick(AUTH_ERRORS, params.error, t)}
         reset={Boolean(params.reset)}
         next={safeNext(params.next) ?? undefined}
       />

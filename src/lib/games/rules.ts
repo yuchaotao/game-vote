@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { msg } from "@/lib/i18n";
 
 export const MAX_GAME_NAME = 100;
 
@@ -11,15 +12,12 @@ export function splitList(raw: string, max = 10): string[] {
   return [...new Set(items)].slice(0, max);
 }
 
-const optionalUrl = (label: string) =>
+const optionalUrl = (tooLong: string, badScheme: string) =>
   z
     .string()
     .trim()
-    .max(500, `${label}太长`)
-    .refine(
-      (v) => v === "" || /^https?:\/\/\S+$/i.test(v),
-      `${label}需要以 http:// 或 https:// 开头`,
-    )
+    .max(500, tooLong)
+    .refine((v) => v === "" || /^https?:\/\/\S+$/i.test(v), badScheme)
     .transform((v) => v || null);
 
 /** A game typed in by hand (Battlefield, Battle.net titles, anything not on Steam). */
@@ -27,8 +25,8 @@ export const manualGameSchema = z.object({
   name: z
     .string()
     .trim()
-    .min(1, "请填写游戏名")
-    .max(MAX_GAME_NAME, `游戏名最多 ${MAX_GAME_NAME} 字`),
+    .min(1, msg("请填写游戏名"))
+    .max(MAX_GAME_NAME, msg("游戏名最多 {max} 字")),
   platforms: z
     .string()
     .max(200)
@@ -41,12 +39,15 @@ export const manualGameSchema = z.object({
     .string()
     .max(200)
     .transform((v) => splitList(v)),
-  description: z.string().trim().max(2000, "简介最多 2000 字"),
-  coverUrl: optionalUrl("封面图片地址").refine(
-    (v) => v === null || v.startsWith("https://"),
-    "封面图片地址需要以 https:// 开头",
+  description: z.string().trim().max(2000, msg("简介最多 2000 字")),
+  coverUrl: optionalUrl(
+    msg("封面图片地址太长"),
+    msg("封面图片地址需要以 http:// 或 https:// 开头"),
+  ).refine((v) => v === null || v.startsWith("https://"), msg("封面图片地址需要以 https:// 开头")),
+  storeUrl: optionalUrl(
+    msg("商店 / 官网链接太长"),
+    msg("商店 / 官网链接需要以 http:// 或 https:// 开头"),
   ),
-  storeUrl: optionalUrl("商店 / 官网链接"),
 });
 
 export type ManualGameInput = z.infer<typeof manualGameSchema>;

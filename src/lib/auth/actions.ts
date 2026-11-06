@@ -31,6 +31,7 @@ import {
   registerSchema,
   usernameSchema,
 } from "./validation";
+import { getT } from "@/lib/i18n/server";
 
 export type FormState = { error?: string; ok?: string } | undefined;
 
@@ -40,12 +41,13 @@ async function clientIp(): Promise<string> {
 }
 
 export async function register(_: FormState, form: FormData): Promise<FormState> {
+  const t = await getT();
   const parsed = registerSchema.safeParse(Object.fromEntries(form));
-  if (!parsed.success) return { error: firstError(parsed.error) };
+  if (!parsed.success) return { error: firstError(parsed.error, t) };
   const { username, displayName, email, password } = parsed.data;
 
   if (!(await rateLimit(`register:${await clientIp()}`, 10, 3600))) {
-    return { error: "注册过于频繁，请稍后再试" };
+    return { error: t("注册过于频繁，请稍后再试") };
   }
 
   let user;
@@ -57,8 +59,8 @@ export async function register(_: FormState, form: FormData): Promise<FormState>
       passwordHash: await hashPassword(password),
     });
   } catch (err) {
-    if (isUniqueViolation(err, "username")) return { error: "用户名已被占用" };
-    if (isUniqueViolation(err, "email")) return { error: "该邮箱已注册" };
+    if (isUniqueViolation(err, "username")) return { error: t("用户名已被占用") };
+    if (isUniqueViolation(err, "email")) return { error: t("该邮箱已注册") };
     throw err;
   }
 
@@ -77,12 +79,13 @@ export async function register(_: FormState, form: FormData): Promise<FormState>
 }
 
 export async function login(_: FormState, form: FormData): Promise<FormState> {
+  const t = await getT();
   const parsed = loginSchema.safeParse(Object.fromEntries(form));
-  if (!parsed.success) return { error: firstError(parsed.error) };
+  if (!parsed.success) return { error: firstError(parsed.error, t) };
   const identifier = normalizeUsername(parsed.data.identifier);
 
   if (!(await rateLimit(`login:${await clientIp()}:${identifier}`, 10, 15 * 60))) {
-    return { error: "尝试次数过多，请 15 分钟后再试" };
+    return { error: t("尝试次数过多，请 15 分钟后再试") };
   }
 
   const user = await db.user.findFirst({
@@ -90,7 +93,7 @@ export async function login(_: FormState, form: FormData): Promise<FormState> {
   });
   const valid =
     user?.passwordHash && (await verifyPassword(user.passwordHash, parsed.data.password));
-  if (!user || !valid) return { error: "用户名/邮箱或密码错误" };
+  if (!user || !valid) return { error: t("用户名/邮箱或密码错误") };
 
   await createSession(user.id);
   redirect(safeNext(form.get("next")) ?? "/");
@@ -103,23 +106,25 @@ export async function logout(): Promise<void> {
 }
 
 export async function requestPasswordReset(_: FormState, form: FormData): Promise<FormState> {
+  const t = await getT();
   const parsed = emailSchema.safeParse(form.get("email"));
-  if (!parsed.success) return { error: firstError(parsed.error) };
+  if (!parsed.success) return { error: firstError(parsed.error, t) };
 
   if (await rateLimit(`reset:${await clientIp()}`, 5, 3600)) {
     const user = await db.user.findUnique({ where: { email: parsed.data } });
     if (user?.email) await sendPasswordResetEmail({ ...user, email: user.email });
   }
   // Same response whether or not the email exists.
-  return { ok: "如果该邮箱已注册，你会收到一封重置密码的邮件。" };
+  return { ok: t("如果该邮箱已注册，你会收到一封重置密码的邮件。") };
 }
 
 export async function resetPassword(_: FormState, form: FormData): Promise<FormState> {
+  const t = await getT();
   const password = passwordSchema.safeParse(form.get("password"));
-  if (!password.success) return { error: firstError(password.error) };
+  if (!password.success) return { error: firstError(password.error, t) };
 
   const userId = await consumeToken(String(form.get("token") ?? ""), AuthTokenType.PASSWORD_RESET);
-  if (!userId) return { error: "链接无效或已过期，请重新申请" };
+  if (!userId) return { error: t("链接无效或已过期，请重新申请") };
 
   await db.$transaction([
     db.user.update({
@@ -133,27 +138,29 @@ export async function resetPassword(_: FormState, form: FormData): Promise<FormS
 }
 
 export async function updateProfile(_: FormState, form: FormData): Promise<FormState> {
+  const t = await getT();
   const user = await requireUser();
   const parsed = z
     .object({ username: usernameSchema, displayName: displayNameSchema })
     .safeParse(Object.fromEntries(form));
-  if (!parsed.success) return { error: firstError(parsed.error) };
+  if (!parsed.success) return { error: firstError(parsed.error, t) };
 
   try {
     await db.user.update({ where: { id: user.id }, data: parsed.data });
   } catch (err) {
-    if (isUniqueViolation(err, "username")) return { error: "用户名已被占用" };
+    if (isUniqueViolation(err, "username")) return { error: t("用户名已被占用") };
     throw err;
   }
   revalidatePath("/", "layout");
-  return { ok: "已保存" };
+  return { ok: t("已保存") };
 }
 
 export async function updateEmail(_: FormState, form: FormData): Promise<FormState> {
+  const t = await getT();
   const user = await requireUser();
   const parsed = emailSchema.safeParse(form.get("email"));
-  if (!parsed.success) return { error: firstError(parsed.error) };
-  if (parsed.data === user.email) return { ok: "邮箱未变化" };
+  if (!parsed.success) return { error: firstError(parsed.error, t) };
+  if (parsed.data === user.email) return { ok: t("邮箱未变化") };
 
   try {
     await db.user.update({
@@ -161,46 +168,49 @@ export async function updateEmail(_: FormState, form: FormData): Promise<FormSta
       data: { email: parsed.data, emailVerifiedAt: null },
     });
   } catch (err) {
-    if (isUniqueViolation(err, "email")) return { error: "该邮箱已被其他账号使用" };
+    if (isUniqueViolation(err, "email")) return { error: t("该邮箱已被其他账号使用") };
     throw err;
   }
   await sendVerificationEmail({ id: user.id, email: parsed.data, displayName: user.displayName });
   revalidatePath("/settings");
-  return { ok: "已保存，验证邮件已发送" };
+  return { ok: t("已保存，验证邮件已发送") };
 }
 
 export async function resendVerification(): Promise<FormState> {
+  const t = await getT();
   const user = await requireUser();
-  if (!user.email || user.emailVerifiedAt) return { ok: "无需验证" };
+  if (!user.email || user.emailVerifiedAt) return { ok: t("无需验证") };
   if (!(await rateLimit(`verify:${user.id}`, 3, 3600)))
-    return { error: "发送过于频繁，请稍后再试" };
+    return { error: t("发送过于频繁，请稍后再试") };
   await sendVerificationEmail({ ...user, email: user.email });
-  return { ok: "验证邮件已发送" };
+  return { ok: t("验证邮件已发送") };
 }
 
 export async function changePassword(_: FormState, form: FormData): Promise<FormState> {
+  const t = await getT();
   const user = await requireUser();
   const next = passwordSchema.safeParse(form.get("newPassword"));
-  if (!next.success) return { error: firstError(next.error) };
+  if (!next.success) return { error: firstError(next.error, t) };
 
   if (user.passwordHash) {
     const current = String(form.get("currentPassword") ?? "");
-    if (!(await verifyPassword(user.passwordHash, current))) return { error: "当前密码不正确" };
+    if (!(await verifyPassword(user.passwordHash, current))) return { error: t("当前密码不正确") };
   }
   await db.user.update({
     where: { id: user.id },
     data: { passwordHash: await hashPassword(next.data) },
   });
   revalidatePath("/settings");
-  return { ok: user.passwordHash ? "密码已修改" : "密码已设置，现在可以用用户名和密码登录" };
+  return { ok: user.passwordHash ? t("密码已修改") : t("密码已设置，现在可以用用户名和密码登录") };
 }
 
 export async function unlinkAccount(provider: Provider): Promise<FormState> {
+  const t = await getT();
   const user = await requireUser();
   if (!canUnlink(user, provider)) {
-    return { error: "解绑后将无法登录。请先设置密码或绑定其他登录方式。" };
+    return { error: t("解绑后将无法登录。请先设置密码或绑定其他登录方式。") };
   }
   await db.account.deleteMany({ where: { userId: user.id, provider } });
   revalidatePath("/settings");
-  return { ok: "已解绑" };
+  return { ok: t("已解绑") };
 }

@@ -1,5 +1,6 @@
 import { createPublicKey, verify } from "node:crypto";
 import { PermanentDeliveryError } from "./rules";
+import { msg } from "@/lib/i18n";
 
 // The Discord bot over the REST API (no gateway connection needed): direct
 // messages, channel posts, and the text channels it can see.
@@ -9,11 +10,11 @@ type BotOptions = { apiUrl: string; token: string };
 
 // https://discord.com/developers/docs/topics/opcodes-and-status-codes#json
 const PERMANENT: Record<number, string> = {
-  50007: "无法私信：需要和机器人在同一个 Discord 服务器，并允许服务器成员私信",
-  10013: "Discord 用户不存在",
-  10003: "Discord 频道不存在（可能已删除）",
-  50001: "机器人看不到这个频道",
-  50013: "机器人在这个频道没有发言权限",
+  50007: msg("无法私信：需要和机器人在同一个 Discord 服务器，并允许服务器成员私信"),
+  10013: msg("Discord 用户不存在"),
+  10003: msg("Discord 频道不存在（可能已删除）"),
+  50001: msg("机器人看不到这个频道"),
+  50013: msg("机器人在这个频道没有发言权限"),
 };
 
 async function discord<T>(
@@ -36,7 +37,7 @@ async function discord<T>(
   const err = (await res.json().catch(() => ({}))) as { code?: number; message?: string };
   const permanent = err.code !== undefined ? PERMANENT[err.code] : undefined;
   if (permanent) throw new PermanentDeliveryError(permanent);
-  if (res.status === 401) throw new PermanentDeliveryError("Discord 机器人令牌无效");
+  if (res.status === 401) throw new PermanentDeliveryError(msg("Discord 机器人令牌无效"));
   // 429 (rate limited) and 5xx are worth retrying.
   throw new Error(`Discord ${res.status}${err.message ? `: ${err.message}` : ""}`);
 }

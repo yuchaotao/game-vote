@@ -7,8 +7,9 @@ import { env } from "@/lib/env";
 import { listTextChannels, postToChannel } from "@/lib/notify/discord-bot";
 import { notify } from "@/lib/notify/service";
 import { inviteOutcome, type InviteOutcome } from "./rules";
+import { LocalizedError, msg } from "@/lib/i18n";
 
-export class GroupError extends Error {}
+export class GroupError extends LocalizedError {}
 
 const activeGroup = (groupId: string) => ({ id: groupId, dissolvedAt: null });
 
@@ -285,17 +286,17 @@ export async function discordChannelOptions(): Promise<
   { options: { id: string; label: string }[] } | { error: string }
 > {
   const e = env();
-  if (!e.DISCORD_BOT_TOKEN) return { error: "站点尚未配置 Discord 机器人。" };
+  if (!e.DISCORD_BOT_TOKEN) return { error: msg("站点尚未配置 Discord 机器人。") };
   try {
     const channels = await listTextChannels({
       apiUrl: e.DISCORD_API_URL,
       token: e.DISCORD_BOT_TOKEN,
     });
-    if (channels.length === 0) return { error: "机器人还没有加入任何 Discord 服务器。" };
+    if (channels.length === 0) return { error: msg("机器人还没有加入任何 Discord 服务器。") };
     return { options: channels.map((c) => ({ id: c.id, label: channelLabel(c) })) };
   } catch (err) {
     console.error("[discord] listing channels failed:", err);
-    return { error: "暂时无法读取 Discord 频道列表，请稍后再试。" };
+    return { error: msg("暂时无法读取 Discord 频道列表，请稍后再试。") };
   }
 }
 
@@ -329,7 +330,9 @@ export async function setDiscordChannel(
     });
   } catch (err) {
     throw new GroupError(
-      `无法在 #${channel.name} 发消息：${err instanceof Error ? err.message : err}`,
+      "无法在 #{channel} 发消息：{reason}",
+      { channel: channel.name, reason: err instanceof Error ? err.message : String(err) },
+      ["reason"],
     );
   }
   await db.group.update({

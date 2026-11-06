@@ -2,7 +2,13 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { en } from "./en";
-import { localeFromAcceptLanguage, pickLocale, translate } from "./index";
+import {
+  LocalizedError,
+  localeFromAcceptLanguage,
+  pickLocale,
+  translate,
+  translator,
+} from "./index";
 
 describe("picking the language", () => {
   it("follows the browser's most preferred language", () => {
@@ -48,7 +54,11 @@ function sources(dir: string): string[] {
 /** Every literal given to t(), msg() or <T text="…">. */
 function usedKeys() {
   const keys = new Set<string>();
-  const patterns = [/\b(?:t|msg)\(\s*"((?:[^"\\]|\\.)*)"/g, /<Trans\s+text="([^"]+)"/g];
+  const patterns = [
+    /\b(?:t|msg)\(\s*"((?:[^"\\]|\\.)*)"/g,
+    /<Trans\s+text="([^"]+)"/g,
+    /new (?:Vote|Group|Game|Play|HomePage)Error\(\s*"((?:[^"\\]|\\.)*)"/g,
+  ];
   for (const file of sources("src")) {
     const code = readFileSync(file, "utf8");
     for (const re of patterns) {
@@ -57,6 +67,26 @@ function usedKeys() {
   }
   return [...keys];
 }
+
+describe("LocalizedError", () => {
+  it("keeps Chinese as its message and translates where it is caught", () => {
+    const err = new LocalizedError("《{name}》已经是候选了", { name: "Dota 2" });
+    expect(err.message).toBe("《Dota 2》已经是候选了");
+    expect(err.localize(translator("en"))).toBe("Dota 2 is already a candidate");
+    expect(err.localize(translator("zh"))).toBe("《Dota 2》已经是候选了");
+  });
+
+  it("translates params that are keys themselves, and no others", () => {
+    const err = new LocalizedError(
+      "无法在 #{channel} 发消息：{reason}",
+      { channel: "投票", reason: "机器人看不到这个频道" },
+      ["reason"],
+    );
+    expect(err.localize(translator("en"))).toBe(
+      "Can't post in #投票: The bot can't see this channel",
+    );
+  });
+});
 
 describe("the English dictionary", () => {
   const placeholders = (s: string) =>
