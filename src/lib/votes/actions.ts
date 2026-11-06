@@ -20,6 +20,7 @@ import { resolvePrompt, type PromptChoice } from "./prompts";
 import { gamblePeek, gambleSwap } from "./gamble";
 import { roundSettingsSchema } from "./rules";
 import {
+  addAllCandidates,
   addCandidate,
   addVote,
   endAndStartNext,
@@ -105,6 +106,14 @@ export async function addCandidateAction(
     const game = await addCandidate(groupId, roundId, userId, gameId);
     refresh(groupId);
     return { ok: `已把《${game.name}》加入候选` };
+  });
+}
+
+export async function addAllCandidatesAction(groupId: string, roundId: string): Promise<FormState> {
+  return asMember(groupId, async (userId) => {
+    const added = await addAllCandidates(groupId, roundId, userId);
+    refresh(groupId);
+    return { ok: added > 0 ? `已把 ${added} 个游戏加入候选` : "游戏库里的游戏都已经是候选了" };
   });
 }
 

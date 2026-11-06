@@ -273,6 +273,39 @@ export async function addCandidate(
   return entry.game;
 }
 
+/**
+ * Makes every game in the library that isn't a candidate yet one (#62), in the
+ * order they joined the library. Returns how many were added.
+ */
+export async function addAllCandidates(groupId: string, roundId: string, userId: string) {
+  await openRound(groupId, roundId);
+  const added = await db.$transaction(async (tx) => {
+    // Under the round's lock, so clicks at the same time can't add a game twice.
+    await tx.$queryRaw`SELECT id FROM "VoteRound" WHERE id = ${roundId} FOR UPDATE`;
+    const existing = await tx.voteCandidate.findMany({
+      where: { roundId },
+      select: { gameId: true },
+    });
+    const library = await tx.groupGame.findMany({
+      where: { groupId, gameId: { notIn: existing.map((c) => c.gameId) } },
+      orderBy: { addedAt: "asc" },
+      select: { gameId: true },
+    });
+    // A millisecond apart: candidates are listed by when they were added.
+    const now = Date.now();
+    for (const [i, { gameId }] of library.entries()) {
+      const at = new Date(now + i);
+      await tx.voteCandidate.create({ data: { roundId, gameId, addedById: userId, addedAt: at } });
+      await tx.voteEvent.create({
+        data: { roundId, gameId, userId, kind: VoteEventKind.CANDIDATE, at },
+      });
+    }
+    return library.length;
+  });
+  if (added > 0) await notifyChanged(groupId, roundId);
+  return added;
+}
+
 /** Removes a candidate nobody has voted for; only whoever added it or the group owner. */
 export async function removeCandidate(
   groupId: string,
