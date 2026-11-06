@@ -9,12 +9,14 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { formatFriendCode } from "@/lib/auth/validation";
 import { LAST_PAGE_COOKIE } from "@/lib/home/rules";
 import { homeTarget } from "@/lib/home/service";
+import { getT } from "@/lib/i18n/server";
 
 export default async function Home({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const t = await getT();
   const user = await getCurrentUser();
 
   if (!user) {
@@ -34,17 +36,17 @@ export default async function Home({
   // No group yet: how to get started.
   return (
     <main className="mx-auto max-w-2xl space-y-6 px-4 py-10">
-      <h1 className="text-2xl font-bold">欢迎，{user.displayName}</h1>
+      <h1 className="text-2xl font-bold">{t("欢迎，{name}", { name: user.displayName })}</h1>
       {user.email && !user.emailVerifiedAt && (
         <Alert kind="info">
-          你的邮箱还未验证，部分通知可能无法送达。
+          {t("你的邮箱还未验证，部分通知可能无法送达。")}
           <Link href="/settings" className="ml-1 underline">
-            去设置
+            {t("去设置")}
           </Link>
         </Alert>
       )}
       <Card className="space-y-4">
-        <h2 className="text-lg font-semibold">开始使用</h2>
+        <h2 className="text-lg font-semibold">{t("开始使用")}</h2>
         <ol className="space-y-4 text-sm">
           <li className="flex gap-3">
             <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
@@ -52,13 +54,13 @@ export default async function Home({
             </span>
             <div className="space-y-1">
               <p>
-                加好友。把你的好友码发给朋友：
+                {t("加好友。把你的好友码发给朋友：")}
                 <code className="ml-1 rounded bg-zinc-100 px-1.5 py-0.5 font-mono select-all dark:bg-zinc-800">
                   {formatFriendCode(user)}
                 </code>
               </p>
               <Link href="/friends" className="text-indigo-600 hover:underline">
-                去添加好友 →
+                {t("去添加好友 →")}
               </Link>
             </div>
           </li>
@@ -68,10 +70,12 @@ export default async function Home({
             </span>
             <div className="space-y-2">
               <p>
-                建一个群，拉好友进来，或者等朋友把你拉进他们的群。之后打开网站会回到你上次看的页面，也可以在设置里指定默认首页。
+                {t(
+                  "建一个群，拉好友进来，或者等朋友把你拉进他们的群。之后打开网站会回到你上次看的页面，也可以在设置里指定默认首页。",
+                )}
               </p>
               <Link href="/groups" className={buttonClass("primary")}>
-                去建群
+                {t("去建群")}
               </Link>
             </div>
           </li>
