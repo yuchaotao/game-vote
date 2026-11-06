@@ -270,8 +270,12 @@ export function VoteBoard({
   /** Several votes on one game allowed: a − n + stepper instead of a toggle. */
   repeat?: boolean;
 }) {
-  // Kept for the life of the page, so a live refresh doesn't cut the effect short.
-  const [celebrating] = useState(celebrate);
+  // Starts when the reveal arrives (possibly live, on an open page) and is kept
+  // from then on, so a later refresh doesn't cut the effect short.
+  const [celebrating, setCelebrating] = useState(celebrate);
+  useEffect(() => {
+    if (celebrate) setCelebrating(true);
+  }, [celebrate]);
   const [state, setState] = useState<FormState>();
   const [pending, start] = useTransition();
   const run = (fn: () => Promise<FormState>) =>
