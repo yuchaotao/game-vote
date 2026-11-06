@@ -78,7 +78,8 @@ export function ChatPanel({
     } else if (stickToBottom.current) {
       el.scrollTop = el.scrollHeight;
     }
-  }, [messages]);
+    // Also once times appear (client only): they can make system messages taller.
+  }, [messages, mounted]);
 
   const markRead = useCallback(() => {
     if (document.visibilityState === "visible") void markReadAction(groupId);

@@ -110,6 +110,11 @@ test("chat on a phone: long system messages and bubbles don't overlap", async ({
   await page.goto(`${path}/chat`);
   const system = page.locator("[data-system]").filter({ hasText: "检测到" });
   await expect(system).toHaveCount(2);
+  // Opens at the very bottom, with the newest message fully in view.
+  const log = page.getByRole("log", { name: "消息" });
+  await expect
+    .poll(() => log.evaluate((el) => el.scrollHeight - el.clientHeight - el.scrollTop))
+    .toBeLessThanOrEqual(1);
   await shot(page, "chat-phone");
   await noSideways(page);
 
