@@ -154,3 +154,16 @@ test("only one open round; deadlines end rounds; plain end", async ({ browser })
   await owner.page.getByRole("button", { name: "发起投票" }).click();
   await expect(mainAlert(owner.page)).toContainText("截止时间需要在至少 1 分钟之后");
 });
+
+test("add every library game to a round at once", async ({ browser }) => {
+  const { owner, path } = await groupOfTwo(browser);
+  await addToLibrary(owner.page, path, "apex", "Apex Legends™");
+  await addToLibrary(owner.page, path, "1086940", "博德之门3");
+  await startRound(owner.page, path);
+
+  await owner.page.getByRole("button", { name: "添加全部（2）" }).click();
+  await expect(candidate(owner.page, "Apex Legends™")).toBeVisible();
+  await expect(candidate(owner.page, "博德之门3")).toBeVisible();
+  await expect(owner.page.getByText("游戏库里的游戏都已经是候选了")).toBeVisible();
+  await expect(owner.page.getByRole("button", { name: /添加全部/ })).toHaveCount(0);
+});

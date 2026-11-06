@@ -15,6 +15,7 @@ import type { FormState } from "@/lib/auth/actions";
 import { withBase } from "@/lib/base-path";
 import { nextReveal, replayFrames, type ReplayEvent } from "@/lib/votes/rules";
 import {
+  addAllCandidatesAction,
   addCandidateAction,
   endRoundAction,
   removeCandidateAction,
@@ -463,12 +464,12 @@ export function AddFromLibrary({
   return (
     <div className="space-y-2">
       <Status state={state} />
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <select
           aria-label="从游戏库选择"
           value={gameId}
           onChange={(e) => setGameId(e.target.value)}
-          className="min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+          className="min-w-40 flex-1 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
         >
           {games.map((g) => (
             <option key={g.id} value={g.id}>
@@ -484,6 +485,16 @@ export function AddFromLibrary({
           }
         >
           加入候选
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={pending}
+          onClick={() =>
+            start(async () => setState(await addAllCandidatesAction(groupId, roundId)))
+          }
+        >
+          添加全部（{games.length}）
         </Button>
       </div>
     </div>
