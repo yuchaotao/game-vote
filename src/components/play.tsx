@@ -9,6 +9,8 @@ import { formatDuration } from "@/lib/play/rules";
 import type { Presence, TogetherDTO } from "@/lib/play/service";
 import { GameCover } from "./games";
 import { Alert, Avatar, Button } from "./ui";
+import { Trans, useLocale, useT } from "./i18n";
+import { intlLocale } from "@/lib/i18n";
 
 /** Re-renders server data periodically so statuses stay current. */
 export function AutoRefresh({ seconds = 60 }: { seconds?: number }) {
@@ -35,12 +37,14 @@ function Elapsed({ since }: { since: Date }) {
 }
 
 export function PresenceBadge({ presence }: { presence?: Presence }) {
+  const t = useT();
   if (presence?.playing) {
     return (
       <span className="inline-flex max-w-full items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-400">
         <span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
         <span className="truncate">
-          正在玩《{presence.playing.name}》{presence.playing.source === "MANUAL" && "（签到）"} ·{" "}
+          {t("正在玩《{game}》", { game: presence.playing.name })}
+          {presence.playing.source === "MANUAL" && t("（签到）")} ·{" "}
           <Elapsed since={presence.playing.since} />
         </span>
       </span>
@@ -50,7 +54,7 @@ export function PresenceBadge({ presence }: { presence?: Presence }) {
     return (
       <span className="inline-flex items-center gap-1.5 text-xs text-sky-700 dark:text-sky-400">
         <span aria-hidden className="h-2 w-2 rounded-full bg-sky-500" />
-        Steam 在线
+        {t("Steam 在线")}
       </span>
     );
   }
@@ -59,17 +63,22 @@ export function PresenceBadge({ presence }: { presence?: Presence }) {
 
 /** Local "10月28日 21:05 – 22:40". */
 function TimeRange({ start, end, live }: { start: Date; end: Date; live: boolean }) {
+  const t = useT();
+  const locale = useLocale();
   const [text, setText] = useState("");
   useEffect(() => {
-    const day = new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric" });
-    const time = new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit" });
+    const day = new Intl.DateTimeFormat(intlLocale(locale), { month: "numeric", day: "numeric" });
+    const time = new Intl.DateTimeFormat(intlLocale(locale), {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
     const s = new Date(start);
     const e = new Date(end);
     const sameDay = s.toDateString() === e.toDateString();
     setText(
-      `${day.format(s)} ${time.format(s)} – ${live ? "现在" : `${sameDay ? "" : `${day.format(e)} `}${time.format(e)}`}`,
+      `${day.format(s)} ${time.format(s)} – ${live ? t("现在") : `${sameDay ? "" : `${day.format(e)} `}${time.format(e)}`}`,
     );
-  }, [start, end, live]);
+  }, [start, end, live, locale, t]);
   return <time dateTime={new Date(start).toISOString()}>{text}</time>;
 }
 
@@ -84,37 +93,38 @@ export function TogetherList({
   showGame?: boolean;
   empty: string;
 }) {
+  const t = useT();
   if (items.length === 0) return <p className="text-sm text-zinc-500">{empty}</p>;
   return (
-    <ul aria-label="一起玩的记录" className="divide-y divide-zinc-200 dark:divide-zinc-800">
-      {items.map((t) => (
+    <ul aria-label={t("一起玩的记录")} className="divide-y divide-zinc-200 dark:divide-zinc-800">
+      {items.map((row) => (
         <li
-          key={`${t.game.id}-${new Date(t.start).getTime()}`}
+          key={`${row.game.id}-${new Date(row.start).getTime()}`}
           className="flex items-center gap-3 py-3"
         >
           {showGame && (
-            <Link href={`/groups/${groupId}/games/${t.game.id}`} className="shrink-0">
+            <Link href={`/groups/${groupId}/games/${row.game.id}`} className="shrink-0">
               <GameCover
-                src={t.game.coverUrl}
-                name={t.game.name}
+                src={row.game.coverUrl}
+                name={row.game.name}
                 className="h-10 w-[86px] rounded text-base"
               />
             </Link>
           )}
           <div className="min-w-0 flex-1 space-y-1">
             <p className="flex flex-wrap items-center gap-x-2 text-sm">
-              {showGame && <span className="font-medium">{t.game.name}</span>}
+              {showGame && <span className="font-medium">{row.game.name}</span>}
               <span className="text-zinc-500">
-                <TimeRange start={t.start} end={t.end} live={t.live} />
+                <TimeRange start={row.start} end={row.end} live={row.live} />
               </span>
-              {t.live && (
+              {row.live && (
                 <span className="rounded bg-emerald-100 px-1.5 text-xs text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200">
-                  进行中
+                  {t("进行中")}
                 </span>
               )}
             </p>
             <div className="flex flex-wrap items-center gap-1.5">
-              {t.members.map((m) => (
+              {row.members.map((m) => (
                 <span
                   key={m.id}
                   className="inline-flex items-center gap-1 text-xs text-zinc-600 dark:text-zinc-400"
@@ -126,7 +136,7 @@ export function TogetherList({
             </div>
           </div>
           <span className="shrink-0 text-sm font-medium">
-            {formatDuration(new Date(t.end).getTime() - new Date(t.start).getTime())}
+            {formatDuration(new Date(row.end).getTime() - new Date(row.start).getTime())}
           </span>
         </li>
       ))}
@@ -139,10 +149,12 @@ export function PlayTotals({
 }: {
   totals: { user: { id: string; displayName: string; avatarUrl: string | null }; ms: number }[];
 }) {
-  if (totals.length === 0) return <p className="text-sm text-zinc-500">近 30 天没有群成员玩过。</p>;
+  const t = useT();
+  if (totals.length === 0)
+    return <p className="text-sm text-zinc-500">{t("近 30 天没有群成员玩过。")}</p>;
   const max = totals[0].ms;
   return (
-    <ul aria-label="成员游玩时长" className="space-y-2">
+    <ul aria-label={t("成员游玩时长")} className="space-y-2">
       {totals.map(({ user, ms }) => (
         <li key={user.id} className="flex items-center gap-2 text-sm">
           <Avatar src={user.avatarUrl} name={user.displayName} size={20} />
@@ -172,6 +184,7 @@ export function CheckInCard({
   games: { id: string; name: string }[];
   current: { gameId: string; name: string; since: Date } | null;
 }) {
+  const t = useT();
   const [gameId, setGameId] = useState(games[0]?.id ?? "");
   const [state, setState] = useState<FormState>();
   const [pending, start] = useTransition();
@@ -184,7 +197,8 @@ export function CheckInCard({
       {current ? (
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm">
-            你正在玩《{current.name}》，已签到 <Elapsed since={current.since} />
+            {t("你正在玩《{game}》，已签到", { game: current.name })}{" "}
+            <Elapsed since={current.since} />
           </p>
           <Button
             type="button"
@@ -192,21 +206,26 @@ export function CheckInCard({
             disabled={pending}
             onClick={() => run(() => checkOutAction(groupId))}
           >
-            结束签到
+            {t("结束签到")}
           </Button>
         </div>
       ) : games.length === 0 ? (
         <p className="text-sm text-zinc-500">
-          先在
-          <Link href={`/groups/${groupId}/games`} className="text-indigo-600 hover:underline">
-            游戏库
-          </Link>
-          添加游戏，就可以签到了。
+          <Trans
+            text="先在{library}添加游戏，就可以签到了。"
+            values={{
+              library: (
+                <Link href={`/groups/${groupId}/games`} className="text-indigo-600 hover:underline">
+                  {t("游戏库")}
+                </Link>
+              ),
+            }}
+          />
         </p>
       ) : (
         <div className="flex flex-wrap items-center gap-2">
           <select
-            aria-label="签到的游戏"
+            aria-label={t("签到的游戏")}
             value={gameId}
             onChange={(e) => setGameId(e.target.value)}
             className="min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
@@ -222,12 +241,12 @@ export function CheckInCard({
             disabled={pending || !gameId}
             onClick={() => run(() => checkInAction(groupId, gameId))}
           >
-            我在玩
+            {t("我在玩")}
           </Button>
         </div>
       )}
       <p className="text-xs text-zinc-500">
-        关联 Steam 并公开游戏详情后会自动检测，不用签到。签到 6 小时后自动结束。
+        {t("关联 Steam 并公开游戏详情后会自动检测，不用签到。签到 6 小时后自动结束。")}
       </p>
     </div>
   );

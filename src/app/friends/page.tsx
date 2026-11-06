@@ -23,8 +23,13 @@ import {
   type PublicUser,
 } from "@/lib/friends/service";
 import { presenceFor } from "@/lib/play/service";
+import { getLocale, getT } from "@/lib/i18n/server";
+import { intlLocale, msg } from "@/lib/i18n";
 
-export const metadata = { title: "好友 · Game Vote" };
+export async function generateMetadata() {
+  const t = await getT();
+  return { title: `${t("好友")} · Game Vote` };
+}
 
 function UserLine({
   user,
@@ -51,24 +56,26 @@ function UserLine({
 }
 
 const STATUS_TEXT: Record<InviteStatus, string> = {
-  active: "有效",
-  expired: "已过期",
-  "used-up": "次数已用完",
-  revoked: "已作废",
+  active: msg("有效"),
+  expired: msg("已过期"),
+  "used-up": msg("次数已用完"),
+  revoked: msg("已作废"),
 };
 
-const fmt = new Intl.DateTimeFormat("zh-CN", {
+const EXPIRY_FORMAT: Intl.DateTimeFormatOptions = {
   month: "numeric",
   day: "numeric",
   hour: "2-digit",
   minute: "2-digit",
   timeZone: "Asia/Shanghai",
-});
+};
 
 const STEAM_REASON: Record<string, string> = {
-  "no-key": "站点尚未配置 Steam API Key，暂时无法读取 Steam 好友。",
-  private: "读取失败：你的 Steam 好友列表不是公开的。可在 Steam 隐私设置中把“好友列表”设为公开。",
-  error: "暂时无法连接 Steam，请稍后再试。",
+  "no-key": msg("站点尚未配置 Steam API Key，暂时无法读取 Steam 好友。"),
+  private: msg(
+    "读取失败：你的 Steam 好友列表不是公开的。可在 Steam 隐私设置中把“好友列表”设为公开。",
+  ),
+  error: msg("暂时无法连接 Steam，请稍后再试。"),
 };
 
 export default async function FriendsPage({
@@ -76,6 +83,8 @@ export default async function FriendsPage({
 }: {
   searchParams: Promise<{ added?: string }>;
 }) {
+  const t = await getT();
+  const fmt = new Intl.DateTimeFormat(intlLocale(await getLocale()), EXPIRY_FORMAT);
   const user = await requireUser();
   const { added } = await searchParams;
   const [friends, requests, invites, steam] = await Promise.all([
@@ -90,9 +99,11 @@ export default async function FriendsPage({
     invites.map(async (i) => {
       const url = absoluteUrl(`/invite/${i.code}`);
       const parts = [
-        STATUS_TEXT[i.status],
-        i.maxUses === null ? `已用 ${i.uses} 次` : `已用 ${i.uses}/${i.maxUses} 次`,
-        i.expiresAt ? `${fmt.format(i.expiresAt)} 过期` : "永久有效",
+        t(STATUS_TEXT[i.status]),
+        i.maxUses === null
+          ? t("已用 {n} 次", { n: i.uses })
+          : t("已用 {n}/{max} 次", { n: i.uses, max: i.maxUses }),
+        i.expiresAt ? t("{date} 过期", { date: fmt.format(i.expiresAt) }) : t("永久有效"),
       ];
       return {
         id: i.id,
@@ -108,14 +119,14 @@ export default async function FriendsPage({
 
   return (
     <main className="mx-auto max-w-2xl space-y-6 px-4 py-8">
-      <h1 className="text-2xl font-bold">好友</h1>
-      {added && <Alert kind="ok">你和 {added} 已成为好友！</Alert>}
+      <h1 className="text-2xl font-bold">{t("好友")}</h1>
+      {added && <Alert kind="ok">{t("你和 {name} 已成为好友！", { name: added })}</Alert>}
 
       <Card className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold">添加好友</h2>
+          <h2 className="text-lg font-semibold">{t("添加好友")}</h2>
           <div className="flex items-center gap-2 text-sm">
-            我的好友码
+            {t("我的好友码")}
             <code className="rounded bg-zinc-100 px-2 py-1 font-mono dark:bg-zinc-800">{code}</code>
             <CopyButton text={code} />
           </div>
@@ -126,7 +137,8 @@ export default async function FriendsPage({
       {requests.incoming.length > 0 && (
         <Card className="space-y-2">
           <h2 className="text-lg font-semibold">
-            收到的申请 <span className="text-sm text-zinc-500">({requests.incoming.length})</span>
+            {t("收到的申请")}{" "}
+            <span className="text-sm text-zinc-500">({requests.incoming.length})</span>
           </h2>
           <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
             {requests.incoming.map((r) => (
@@ -140,10 +152,12 @@ export default async function FriendsPage({
 
       <Card className="space-y-2">
         <h2 className="text-lg font-semibold">
-          我的好友 <span className="text-sm text-zinc-500">({friends.length})</span>
+          {t("我的好友")} <span className="text-sm text-zinc-500">({friends.length})</span>
         </h2>
         {friends.length === 0 ? (
-          <p className="py-4 text-sm text-zinc-500">还没有好友。把好友码或邀请链接发给朋友吧。</p>
+          <p className="py-4 text-sm text-zinc-500">
+            {t("还没有好友。把好友码或邀请链接发给朋友吧。")}
+          </p>
         ) : (
           <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
             {friends.map((f) => (
@@ -157,7 +171,7 @@ export default async function FriendsPage({
 
       {requests.outgoing.length > 0 && (
         <Card className="space-y-2">
-          <h2 className="text-lg font-semibold">等待对方确认</h2>
+          <h2 className="text-lg font-semibold">{t("等待对方确认")}</h2>
           <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
             {requests.outgoing.map((r) => (
               <UserLine key={r.id} user={r.to}>
@@ -170,9 +184,9 @@ export default async function FriendsPage({
 
       <Card className="space-y-4">
         <div>
-          <h2 className="text-lg font-semibold">邀请链接</h2>
+          <h2 className="text-lg font-semibold">{t("邀请链接")}</h2>
           <p className="text-sm text-zinc-500">
-            朋友打开链接即可加你为好友；还没有账号的朋友注册后会自动成为你的好友。
+            {t("朋友打开链接即可加你为好友；还没有账号的朋友注册后会自动成为你的好友。")}
           </p>
         </div>
         <CreateInviteForm />
@@ -194,12 +208,12 @@ export default async function FriendsPage({
 
       <Card className="space-y-2">
         <h2 className="flex items-center gap-2 text-lg font-semibold">
-          <SteamIcon /> Steam 好友推荐
+          <SteamIcon /> {t("Steam 好友推荐")}
         </h2>
         {steam.ok ? (
           steam.users.length === 0 ? (
             <p className="py-2 text-sm text-zinc-500">
-              你的 Steam 好友中暂时没有其他人注册本站（或都已经是好友了）。
+              {t("你的 Steam 好友中暂时没有其他人注册本站（或都已经是好友了）。")}
             </p>
           ) : (
             <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
@@ -213,14 +227,14 @@ export default async function FriendsPage({
         ) : steam.reason === "not-linked" ? (
           <div className="flex items-center justify-between gap-3 py-2">
             <p className="text-sm text-zinc-500">
-              绑定 Steam 后，可以找到已注册本站的 Steam 好友。
+              {t("绑定 Steam 后，可以找到已注册本站的 Steam 好友。")}
             </p>
             <a href={withBase("/api/auth/steam?intent=link")} className={buttonClass("steam")}>
-              绑定 Steam
+              {t("绑定 Steam")}
             </a>
           </div>
         ) : (
-          <p className="py-2 text-sm text-zinc-500">{STEAM_REASON[steam.reason]}</p>
+          <p className="py-2 text-sm text-zinc-500">{t(STEAM_REASON[steam.reason])}</p>
         )}
       </Card>
     </main>

@@ -1,4 +1,5 @@
 import type { NotificationChannel, NotificationEvent } from "@prisma/client";
+import { msg } from "@/lib/i18n";
 
 // Pure notification rules: which events exist, defaults, retries and message rendering.
 // Type-only Prisma imports: the settings form uses this module in the browser.
@@ -9,9 +10,9 @@ export type UserChannel = Exclude<NotificationChannel, "DISCORD_CHANNEL">;
 export const CHANNELS: readonly UserChannel[] = ["EMAIL", "DISCORD"];
 
 export const CHANNEL_LABEL: Record<NotificationChannel, string> = {
-  EMAIL: "邮件",
-  DISCORD: "Discord 私信",
-  DISCORD_CHANNEL: "Discord 频道",
+  EMAIL: msg("邮件"),
+  DISCORD: msg("Discord 私信"),
+  DISCORD_CHANNEL: msg("Discord 频道"),
 };
 
 type EventInfo = {
@@ -24,23 +25,23 @@ type EventInfo = {
 // time-sensitive, so it only goes to Discord by default.
 export const EVENTS: Record<NotificationEvent, EventInfo> = {
   NEW_ROUND: {
-    label: "新投票",
-    hint: "群里有人发起了投票",
+    label: msg("新投票"),
+    hint: msg("群里有人发起了投票"),
     defaults: { EMAIL: false, DISCORD: true },
   },
   VOTE_PROMPT: {
-    label: "新投票提示",
-    hint: "大家正在一起玩投票中领先的游戏，问要不要结束投票",
+    label: msg("新投票提示"),
+    hint: msg("大家正在一起玩投票中领先的游戏，问要不要结束投票"),
     defaults: { EMAIL: false, DISCORD: true },
   },
   JOIN_REQUEST: {
-    label: "入群请求",
-    hint: "你的群有待审批的入群请求",
+    label: msg("入群请求"),
+    hint: msg("你的群有待审批的入群请求"),
     defaults: { EMAIL: true, DISCORD: true },
   },
   FRIEND_REQUEST: {
-    label: "好友申请",
-    hint: "有人想加你为好友",
+    label: msg("好友申请"),
+    hint: msg("有人想加你为好友"),
     defaults: { EMAIL: true, DISCORD: true },
   },
 };

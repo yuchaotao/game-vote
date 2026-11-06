@@ -3,8 +3,12 @@ import { ChatPanel } from "@/components/chat";
 import { requireUser } from "@/lib/auth/session";
 import { listMessages } from "@/lib/chat/service";
 import { getGroupForMember } from "@/lib/groups/service";
+import { getT } from "@/lib/i18n/server";
 
-export const metadata = { title: "聊天 · Game Vote" };
+export async function generateMetadata() {
+  const t = await getT();
+  return { title: `${t("聊天")} · Game Vote` };
+}
 
 export default async function GroupChatPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

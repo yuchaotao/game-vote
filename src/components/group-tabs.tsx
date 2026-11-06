@@ -5,8 +5,10 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { GROUP_TABS as TABS } from "@/lib/home/rules";
+import { useT } from "./i18n";
 
 export function GroupTabs({ groupId, unread }: { groupId: string; unread: number }) {
+  const t = useT();
   const pathname = usePathname();
   const base = `/groups/${groupId}`;
   // The group layout (and the count it passed in) stays mounted while switching
@@ -19,14 +21,17 @@ export function GroupTabs({ groupId, unread }: { groupId: string; unread: number
   }, [onChat, unread]);
   const shown = readCount === unread ? 0 : unread;
   return (
-    <nav aria-label="群功能" className="flex gap-1 border-b border-zinc-200 dark:border-zinc-800">
-      {TABS.map((t) => {
-        const href = `${base}${t.path}`;
+    <nav
+      aria-label={t("群功能")}
+      className="flex gap-1 border-b border-zinc-200 dark:border-zinc-800"
+    >
+      {TABS.map((row) => {
+        const href = `${base}${row.path}`;
         // Sub-pages (a game's details) keep their section highlighted.
-        const active = t.path === "" ? pathname === href : pathname.startsWith(href);
+        const active = row.path === "" ? pathname === href : pathname.startsWith(href);
         return (
           <Link
-            key={t.label}
+            key={row.label}
             href={href}
             aria-current={active ? "page" : undefined}
             className={`-mb-px flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium ${
@@ -35,10 +40,10 @@ export function GroupTabs({ groupId, unread }: { groupId: string; unread: number
                 : "border-transparent text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
             }`}
           >
-            {t.label}
-            {t.path === "/chat" && shown > 0 && !active && (
+            {t(row.label)}
+            {row.path === "/chat" && shown > 0 && !active && (
               <span
-                aria-label={`${shown} 条未读消息`}
+                aria-label={t("{n} 条未读消息", { n: shown })}
                 className="rounded-full bg-red-500 px-1.5 text-xs leading-5 text-white"
               >
                 {shown > 99 ? "99+" : shown}
