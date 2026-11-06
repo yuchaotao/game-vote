@@ -373,6 +373,7 @@ async function addOne(
     update: { count: { increment: 1 } },
   });
   await tx.voteEvent.create({ data: { roundId, userId, gameId, kind: VoteEventKind.CAST } });
+  await tx.voteConfirmation.deleteMany({ where: { roundId, userId } });
   return onGame(gameId) + 1;
 }
 
@@ -390,6 +391,7 @@ async function removeOne(
   if (n === 1) await tx.voteBallot.delete({ where });
   else await tx.voteBallot.update({ where, data: { count: { decrement: 1 } } });
   await tx.voteEvent.create({ data: { roundId, userId, gameId, kind: VoteEventKind.RETRACT } });
+  await tx.voteConfirmation.deleteMany({ where: { roundId, userId } });
   return n - 1;
 }
 
@@ -426,6 +428,24 @@ export async function removeVote(groupId: string, roundId: string, userId: strin
 }
 
 /** A member's votes in a round: on one game, and in total. */
+/**
+ * Submits this member's votes (#72). Only marks them as done: it ends nothing
+ * and affects nobody else. Changing a vote takes the confirmation back.
+ */
+export async function confirmVotes(groupId: string, roundId: string, userId: string) {
+  await openRound(groupId, roundId);
+  await db.$transaction(async (tx) => {
+    const { used } = await lockForVote(tx, roundId, userId);
+    if (used === 0) throw new VoteError("先投票再确认");
+    await tx.voteConfirmation.upsert({
+      where: { roundId_userId: { roundId, userId } },
+      create: { roundId, userId },
+      update: {},
+    });
+  });
+  await notifyChanged(groupId, roundId);
+}
+
 export async function myVotes(roundId: string, userId: string, gameId: string) {
   const ballots = await db.voteBallot.findMany({
     where: { roundId, userId },
@@ -446,6 +466,7 @@ const roundInclude = {
     include: { game: true, addedBy: { select: publicUser } },
   },
   ballots: { include: { user: { select: publicUser } } },
+  confirmations: { select: { userId: true } },
 } satisfies Prisma.VoteRoundInclude;
 
 export type RoundDetail = Prisma.VoteRoundGetPayload<{ include: typeof roundInclude }>;

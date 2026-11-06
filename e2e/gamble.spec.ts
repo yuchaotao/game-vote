@@ -162,6 +162,7 @@ test("start a round with the last round's settings", async ({ browser }) => {
   await expect(page).toHaveURL(/\/votes\/\w+$/, { timeout: 30_000 });
   const first = await roundOf(page.url());
   page.once("dialog", (d) => d.accept());
+  await page.getByText("管理投票", { exact: true }).click();
   await page.getByRole("button", { name: "仅结束投票" }).click();
   await expect(page.getByText("已揭榜")).toBeVisible();
 

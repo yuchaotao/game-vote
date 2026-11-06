@@ -38,6 +38,50 @@ async function startRound(
   return page.url();
 }
 
+test("confirming your votes affects only you, and ending lives under manage", async ({
+  browser,
+}) => {
+  const { owner, friend, path } = await groupOfTwo(browser);
+  await addToLibrary(owner.page, path, "apex", "Apex Legends™");
+  await addToLibrary(owner.page, path, "1086940", "博德之门3");
+  const roundUrl = await startRound(owner.page, path, { maxVotes: 2 });
+  await owner.page.getByLabel("从游戏库选择").selectOption({ label: "Apex Legends™" });
+  await owner.page.getByRole("button", { name: "加入候选" }).click();
+  await expect(candidate(owner.page, "Apex Legends™")).toBeVisible();
+  await owner.page.getByRole("button", { name: "加入候选" }).click();
+  await expect(candidate(owner.page, "博德之门3")).toBeVisible();
+
+  // Nothing to confirm yet, and the ending buttons stay tucked away.
+  const confirm = (page: Page) => page.getByRole("button", { name: "确认投票" });
+  await expect(confirm(owner.page)).toBeDisabled();
+  await expect(owner.page.getByRole("button", { name: "仅结束投票" })).toBeHidden();
+
+  await candidate(owner.page, "Apex Legends™")
+    .getByRole("button", { name: "投票 Apex Legends™" })
+    .click();
+  await expect(confirm(owner.page)).toBeEnabled();
+  await owner.page.screenshot({ path: "test-results/screens/vote-confirm.png", fullPage: true });
+  await confirm(owner.page).click();
+  await expect(owner.page.getByText("✓ 已确认")).toBeVisible();
+  await expect(owner.page.getByText("1 人已确认")).toBeVisible();
+
+  // The round goes on, and the friend still has their own votes to make.
+  await friend.page.goto(roundUrl);
+  await expect(friend.page.getByText("1 人已确认")).toBeVisible();
+  await expect(confirm(friend.page)).toBeDisabled();
+
+  // Changing a vote means confirming again.
+  await candidate(owner.page, "博德之门3").getByRole("button", { name: "投票 博德之门3" }).click();
+  await expect(confirm(owner.page)).toBeEnabled();
+  await expect(owner.page.getByText("✓ 已确认")).toHaveCount(0);
+  await expect(friend.page.getByText("1 人已确认")).toHaveCount(0);
+
+  await owner.page.getByText("管理投票", { exact: true }).click();
+  await expect(owner.page.getByRole("button", { name: "结束并开启下一轮" })).toBeVisible();
+  await expect(owner.page.getByRole("button", { name: "仅结束投票" })).toBeVisible();
+  await owner.page.screenshot({ path: "test-results/screens/vote-manage.png", fullPage: true });
+});
+
 test("a full round: candidates, live votes, limits, end and next round, replay", async ({
   browser,
 }) => {
@@ -88,6 +132,7 @@ test("a full round: candidates, live votes, limits, end and next round, replay",
 
   // End and start the next round: same candidates, no votes.
   owner.page.once("dialog", (d) => d.accept());
+  await owner.page.getByText("管理投票", { exact: true }).click();
   await owner.page.getByRole("button", { name: "结束并开启下一轮" }).click();
   await expect(owner.page.getByRole("heading", { name: "第 2 轮投票" })).toBeVisible({
     timeout: 30_000,
@@ -141,6 +186,7 @@ test("only one open round; deadlines end rounds; plain end", async ({ browser })
   // A new round, ended plainly ("仅结束投票").
   await startRound(owner.page, path);
   owner.page.once("dialog", (d) => d.accept());
+  await owner.page.getByText("管理投票", { exact: true }).click();
   await owner.page.getByRole("button", { name: "仅结束投票" }).click();
   // The page refreshes into the ended round (the controls and their toast go away).
   await expect(owner.page.getByText("已结束", { exact: true })).toBeVisible();

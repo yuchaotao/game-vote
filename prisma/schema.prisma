@@ -50,6 +50,7 @@ model User {
   votePrompts        VotePrompt[]
   votePeeks          VotePeek[]
   voteRevealsSeen    VoteRevealSeen[]
+  voteConfirmations  VoteConfirmation[]
 
   notificationPreferences NotificationPreference[]
   notifications           Notification[]
@@ -417,6 +418,8 @@ model VoteRound {
   anonymous        Boolean          @default(false)
   peeks            VotePeek[]
   revealsSeen      VoteRevealSeen[]
+  /// Members who submitted their votes (#72).
+  confirmations    VoteConfirmation[]
   /// A member may put several of their votes on the same game (#53).
   repeatVotes      Boolean          @default(false)
   gambles          VoteGamble[]
@@ -618,6 +621,18 @@ model VotePeek {
 }
 
 /// A member has seen an anonymous round's reveal (its effect plays once).
+/// A member submitted their votes in a round (#72); changing a vote removes it.
+model VoteConfirmation {
+  roundId     String
+  userId      String
+  confirmedAt DateTime @default(now())
+
+  round VoteRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  user  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([roundId, userId])
+}
+
 model VoteRevealSeen {
   roundId String
   userId  String

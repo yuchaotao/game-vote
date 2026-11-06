@@ -5,8 +5,9 @@ import { AddGamePanel, GameCover, LocalDate } from "@/components/games";
 import { Card } from "@/components/ui";
 import {
   AddFromLibrary,
+  ConfirmVotes,
   Deadline,
-  EndRoundControls,
+  ManageRound,
   RoundReplay,
   VoteBoard,
   type BoardItem,
@@ -120,6 +121,9 @@ export default async function RoundPage({
               · {t("每人最多 {n} 票", { n: round.maxVotes })}
               {round.repeatVotes ? t("（可重复投同一个游戏）") : ""} ·{" "}
               {t("{voted} / {total} 人已投", { voted: voters, total: group.members.length })}
+              {open && round.confirmations.length > 0
+                ? ` · ${t("{n} 人已确认", { n: round.confirmations.length })}`
+                : ""}
             </p>
             {open && round.deadline && (
               <p className="text-sm text-amber-700 dark:text-amber-400">
@@ -247,7 +251,17 @@ export default async function RoundPage({
           repeat={round.repeatVotes}
           celebrate={celebrate}
         />
-        {open && <EndRoundControls groupId={id} roundId={roundId} />}
+        {open && (
+          <div className="flex flex-wrap items-start gap-3">
+            <ConfirmVotes
+              groupId={id}
+              roundId={roundId}
+              confirmed={round.confirmations.some((c) => c.userId === user.id)}
+              hasVotes={Object.keys(myVotes).length > 0}
+            />
+            <ManageRound groupId={id} roundId={roundId} />
+          </div>
+        )}
       </Card>
 
       {open && (
