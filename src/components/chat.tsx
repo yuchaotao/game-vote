@@ -78,7 +78,8 @@ export function ChatPanel({
     } else if (stickToBottom.current) {
       el.scrollTop = el.scrollHeight;
     }
-  }, [messages]);
+    // Also once times appear (client only): they can make system messages taller.
+  }, [messages, mounted]);
 
   const markRead = useCallback(() => {
     if (document.visibilityState === "visible") void markReadAction(groupId);
@@ -262,7 +263,7 @@ export function ChatPanel({
                 void send();
               }
             }}
-            className="max-h-40 min-h-10 flex-1 resize-none rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none field-sizing-content focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-zinc-700 dark:bg-zinc-950"
+            className="max-h-40 min-h-10 flex-1 resize-none rounded-lg border border-zinc-300 bg-white px-3 py-2 text-base outline-none sm:text-sm field-sizing-content focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-zinc-700 dark:bg-zinc-950"
           />
           <Button disabled={sending || !draft.trim()}>发送</Button>
         </div>
@@ -299,9 +300,19 @@ function MessageRow({
 
   if (m.type === "SYSTEM") {
     return (
-      <p className="py-1 text-center text-xs text-zinc-500" data-system>
-        <span className="rounded-full bg-zinc-100 px-3 py-1 dark:bg-zinc-800">{m.body}</span>
-        <span className="ml-2 text-zinc-400">{time}</span>
+      // Flex makes the text one block: as an inline box, its background and padding
+      // would run over the neighbouring lines when it wraps.
+      <p
+        className="flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 py-1 text-center text-xs text-zinc-500"
+        data-system
+      >
+        <span
+          className="min-w-0 rounded-2xl bg-zinc-100 px-3 py-1 break-words dark:bg-zinc-800"
+          data-system-text
+        >
+          {m.body}
+        </span>
+        <span className="text-zinc-400">{time}</span>
       </p>
     );
   }
