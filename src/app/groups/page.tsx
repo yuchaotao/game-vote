@@ -4,30 +4,37 @@ import { Alert, Card } from "@/components/ui";
 import { requireUser } from "@/lib/auth/session";
 import { unreadCounts } from "@/lib/chat/service";
 import { listMyGroups } from "@/lib/groups/service";
+import { getT } from "@/lib/i18n/server";
 
-export const metadata = { title: "群组 · Game Vote" };
+export async function generateMetadata() {
+  const t = await getT();
+  return { title: `${t("群组")} · Game Vote` };
+}
 
 export default async function GroupsPage({
   searchParams,
 }: {
   searchParams: Promise<{ left?: string; dissolved?: string }>;
 }) {
+  const t = await getT();
   const user = await requireUser();
   const params = await searchParams;
   const [groups, unread] = await Promise.all([listMyGroups(user.id), unreadCounts(user.id)]);
 
   return (
     <main className="mx-auto max-w-3xl space-y-6 px-4 py-8">
-      <h1 className="text-2xl font-bold">群组</h1>
-      {params.left && <Alert kind="ok">已退出群。</Alert>}
-      {params.dissolved && <Alert kind="ok">群已解散。</Alert>}
+      <h1 className="text-2xl font-bold">{t("群组")}</h1>
+      {params.left && <Alert kind="ok">{t("已退出群。")}</Alert>}
+      {params.dissolved && <Alert kind="ok">{t("群已解散。")}</Alert>}
 
       <section aria-labelledby="my-groups" className="space-y-3">
         <h2 id="my-groups" className="text-lg font-semibold">
-          我的群 <span className="text-sm text-zinc-500">({groups.length})</span>
+          {t("我的群")} <span className="text-sm text-zinc-500">({groups.length})</span>
         </h2>
         {groups.length === 0 ? (
-          <p className="text-sm text-zinc-500">还没有加入任何群。创建一个，然后拉好友进来吧。</p>
+          <p className="text-sm text-zinc-500">
+            {t("还没有加入任何群。创建一个，然后拉好友进来吧。")}
+          </p>
         ) : (
           <ul className="grid gap-3 sm:grid-cols-2">
             {groups.map((g) => (
@@ -41,12 +48,12 @@ export default async function GroupsPage({
                     <span className="flex shrink-0 gap-1">
                       {(unread[g.id] ?? 0) > 0 && (
                         <span className="rounded-full bg-indigo-600 px-2 text-xs leading-5 text-white">
-                          {unread[g.id]} 条未读
+                          {t("{n} 条未读", { n: unread[g.id] })}
                         </span>
                       )}
                       {g.pendingCount > 0 && (
                         <span className="rounded-full bg-red-500 px-2 text-xs leading-5 text-white">
-                          {g.pendingCount} 待审批
+                          {t("{n} 待审批", { n: g.pendingCount })}
                         </span>
                       )}
                     </span>
@@ -55,7 +62,10 @@ export default async function GroupsPage({
                     <p className="mt-1 line-clamp-2 text-sm text-zinc-500">{g.description}</p>
                   )}
                   <p className="mt-2 text-xs text-zinc-500">
-                    {g.memberCount} 名成员 · 群主 {g.isOwner ? "（我）" : g.owner.displayName}
+                    {t("{n} 名成员 · 群主 {owner}", {
+                      n: g.memberCount,
+                      owner: g.isOwner ? t("（我）") : g.owner.displayName,
+                    })}
                   </p>
                 </Link>
               </li>
@@ -65,7 +75,7 @@ export default async function GroupsPage({
       </section>
 
       <Card className="space-y-3">
-        <h2 className="text-lg font-semibold">创建新群</h2>
+        <h2 className="text-lg font-semibold">{t("创建新群")}</h2>
         <CreateGroupForm />
       </Card>
     </main>

@@ -3,29 +3,36 @@ import { AcceptInviteButton } from "@/components/friends";
 import { Alert, Avatar, buttonClass, Card } from "@/components/ui";
 import { getCurrentUser } from "@/lib/auth/session";
 import { areFriends, findInvite } from "@/lib/friends/service";
+import { getT } from "@/lib/i18n/server";
+import { Trans } from "@/components/i18n";
+import { msg } from "@/lib/i18n";
 
-export const metadata = { title: "好友邀请 · Game Vote" };
+export async function generateMetadata() {
+  const t = await getT();
+  return { title: `${t("好友邀请")} · Game Vote` };
+}
 
 const INVALID: Record<string, string> = {
-  expired: "这个邀请链接已过期。",
-  "used-up": "这个邀请链接的使用次数已用完。",
-  revoked: "这个邀请链接已被作废。",
+  expired: msg("这个邀请链接已过期。"),
+  "used-up": msg("这个邀请链接的使用次数已用完。"),
+  revoked: msg("这个邀请链接已被作废。"),
 };
 
 export default async function InvitePage({ params }: { params: Promise<{ code: string }> }) {
+  const t = await getT();
   const { code } = await params;
   const [invite, user] = await Promise.all([findInvite(code), getCurrentUser()]);
   const here = `/invite/${code}`;
 
   let body: React.ReactNode;
   if (!invite) {
-    body = <Alert kind="error">邀请链接不存在。</Alert>;
+    body = <Alert kind="error">{t("邀请链接不存在。")}</Alert>;
   } else if (user?.id === invite.creatorId) {
-    body = <Alert kind="info">这是你自己的邀请链接，把它发给朋友吧。</Alert>;
+    body = <Alert kind="info">{t("这是你自己的邀请链接，把它发给朋友吧。")}</Alert>;
   } else if (user && (await areFriends(user.id, invite.creatorId))) {
-    body = <Alert kind="ok">你们已经是好友了。</Alert>;
+    body = <Alert kind="ok">{t("你们已经是好友了。")}</Alert>;
   } else if (invite.status !== "active") {
-    body = <Alert kind="error">{INVALID[invite.status]}</Alert>;
+    body = <Alert kind="error">{t(INVALID[invite.status])}</Alert>;
   } else if (user) {
     body = <AcceptInviteButton code={code} />;
   } else {
@@ -35,13 +42,13 @@ export default async function InvitePage({ params }: { params: Promise<{ code: s
           href={`/register?next=${encodeURIComponent(here)}`}
           className={buttonClass("primary", "w-full")}
         >
-          注册并成为好友
+          {t("注册并成为好友")}
         </Link>
         <Link
           href={`/login?next=${encodeURIComponent(here)}`}
           className={buttonClass("secondary", "w-full")}
         >
-          已有账号？登录
+          {t("已有账号？登录")}
         </Link>
       </div>
     );
@@ -54,14 +61,19 @@ export default async function InvitePage({ params }: { params: Promise<{ code: s
           <div className="flex flex-col items-center gap-3 text-center">
             <Avatar src={invite.creator.avatarUrl} name={invite.creator.displayName} size={72} />
             <p className="text-lg">
-              <span className="font-semibold">{invite.creator.displayName}</span> 邀请你成为好友
+              <Trans
+                text="{name} 邀请你成为好友"
+                values={{
+                  name: <span className="font-semibold">{invite.creator.displayName}</span>,
+                }}
+              />
             </p>
           </div>
         )}
         {body}
         <p className="text-center text-sm">
           <Link href="/" className="text-indigo-600 hover:underline">
-            返回首页
+            {t("返回首页")}
           </Link>
         </p>
       </Card>

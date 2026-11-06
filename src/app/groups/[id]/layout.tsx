@@ -7,6 +7,7 @@ import { requireUser } from "@/lib/auth/session";
 import { unreadCounts } from "@/lib/chat/service";
 import { getGroupForMember } from "@/lib/groups/service";
 import { pendingPrompt } from "@/lib/votes/prompts";
+import { getT } from "@/lib/i18n/server";
 
 export default async function GroupLayout({
   children,
@@ -15,6 +16,7 @@ export default async function GroupLayout({
   children: React.ReactNode;
   params: Promise<{ id: string }>;
 }) {
+  const t = await getT();
   const { id } = await params;
   const user = await requireUser();
   const [group, unread, prompt] = await Promise.all([
@@ -28,7 +30,7 @@ export default async function GroupLayout({
     <main className="mx-auto max-w-3xl space-y-6 px-4 py-8">
       <div>
         <Link href="/groups" className="text-sm text-zinc-500 hover:underline">
-          ← 我的群
+          {t("← 我的群")}
         </Link>
         <h1 className="mt-1 text-2xl font-bold">{group.name}</h1>
         {group.description && (
@@ -43,7 +45,7 @@ export default async function GroupLayout({
           groupId={id}
           promptId={prompt.id}
           game={prompt.game}
-          roundLabel={`第 ${prompt.round.number} 轮投票`}
+          roundLabel={t("第 {n} 轮投票", { n: prompt.round.number })}
           players={prompt.players}
           memberCount={prompt.memberCount}
           rank={prompt.round.anonymous ? null : prompt.rank}

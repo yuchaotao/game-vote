@@ -1,3 +1,5 @@
+import { msg } from "@/lib/i18n";
+
 // Where the home page sends a signed-in user (#41). Pure: shared by the
 // browser (remembering pages) and the server (redirecting).
 
@@ -6,10 +8,10 @@ export const LAST_PAGE_COOKIE = "gv_last";
 
 /** A group's tabs, in display order. */
 export const GROUP_TABS = [
-  { label: "成员", path: "" },
-  { label: "聊天", path: "/chat" },
-  { label: "游戏库", path: "/games" },
-  { label: "投票", path: "/votes" },
+  { label: msg("成员"), path: "" },
+  { label: msg("聊天"), path: "/chat" },
+  { label: msg("游戏库"), path: "/games" },
+  { label: msg("投票"), path: "/votes" },
 ] as const;
 
 // Group list, friends, and anything inside a group (a game, a round). Not

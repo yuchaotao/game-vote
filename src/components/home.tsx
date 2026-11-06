@@ -5,6 +5,7 @@ import { useActionState, useEffect } from "react";
 import { saveHomePage } from "@/lib/home/actions";
 import { GROUP_TABS, LAST_PAGE_COOKIE, rememberable } from "@/lib/home/rules";
 import { Alert, Button } from "./ui";
+import { useT } from "./i18n";
 
 /** Remembers the current page on this device, so the home page can return to it. */
 export function RememberPage() {
@@ -24,24 +25,25 @@ export function HomePageForm({
   current: string | null;
   groups: { id: string; name: string }[];
 }) {
+  const t = useT();
   const [state, action, pending] = useActionState(saveHomePage, undefined);
   return (
     <form action={action} className="space-y-3">
       {state?.error && <Alert kind="error">{state.error}</Alert>}
       {state?.ok && <Alert kind="ok">{state.ok}</Alert>}
       <label className="block">
-        <span className="mb-1 block text-sm font-medium">默认首页</span>
+        <span className="mb-1 block text-sm font-medium">{t("默认首页")}</span>
         <select
           name="homePath"
           defaultValue={current ?? ""}
           className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
         >
-          <option value="">总是显示最近访问</option>
+          <option value="">{t("总是显示最近访问")}</option>
           {groups.map((g) => (
             <optgroup key={g.id} label={g.name}>
-              {GROUP_TABS.map((t) => (
-                <option key={t.path} value={`/groups/${g.id}${t.path}`}>
-                  {g.name} · {t.label}
+              {GROUP_TABS.map((row) => (
+                <option key={row.path} value={`/groups/${g.id}${row.path}`}>
+                  {g.name} · {t(row.label)}
                 </option>
               ))}
             </optgroup>
@@ -49,9 +51,9 @@ export function HomePageForm({
         </select>
       </label>
       <p className="text-xs text-zinc-500">
-        「最近访问」按设备记住：在这台设备上打开网站时，回到你上次看的群页面或好友页。
+        {t("「最近访问」按设备记住：在这台设备上打开网站时，回到你上次看的群页面或好友页。")}
       </p>
-      <Button disabled={pending}>保存默认首页</Button>
+      <Button disabled={pending}>{t("保存默认首页")}</Button>
     </form>
   );
 }

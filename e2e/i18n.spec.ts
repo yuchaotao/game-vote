@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { groupOfTwo } from "./social";
 
 // The interface language (#65). Chinese stays the default until the whole
 // interface is translated; a cookie selects English.
@@ -24,4 +25,28 @@ test("English pages when the language cookie says so", async ({ browser }) => {
   await page.goto("/forgot-password");
   await expect(page.getByRole("button", { name: "Send reset email" })).toBeVisible();
   await context.close();
+});
+
+test("signed-in pages in English: friends, groups, chat, settings", async ({ browser }) => {
+  const { owner, path } = await groupOfTwo(browser);
+  const page = owner.page;
+  await page
+    .context()
+    .addCookies([{ name: "gv_locale", value: "en", url: "http://localhost:3000" }]);
+
+  await page.goto("/friends");
+  await expect(page.getByRole("heading", { level: 1, name: "Friends" })).toBeVisible();
+  await expect(page.getByLabel("Friend code")).toBeVisible();
+  await page.goto("/groups");
+  await expect(page.getByRole("heading", { name: "Create a new group" })).toBeVisible();
+  await page.goto(path);
+  await expect(page.getByRole("navigation", { name: "Group sections" })).toContainText("Library");
+  await expect(page.getByRole("list", { name: "Member list" })).toContainText("(me)");
+  await page.goto(`${path}/chat`);
+  await expect(page.getByRole("textbox", { name: "Type a message" })).toBeVisible();
+  await expect(page.getByText("Live", { exact: true })).toBeVisible();
+  await page.goto("/settings");
+  await expect(page.getByRole("heading", { name: "Linked accounts" })).toBeVisible();
+  await expect(page.getByRole("checkbox", { name: "New vote · Email" })).not.toBeChecked();
+  await expect(page.getByLabel("Default home page")).toBeVisible();
 });

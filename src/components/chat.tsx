@@ -10,18 +10,23 @@ import {
   type ChatMessageDTO,
 } from "@/lib/chat/format";
 import { Avatar, Button } from "./ui";
+import { useLocale, useT } from "./i18n";
+import { intlLocale, type Locale } from "@/lib/i18n";
 
 const EMOJIS = "😀😂🤣😊😍😎🤔😅😭😡👍👎👏🙏💪🎉🔥💯❤️🎮🕹️🏆⏰✅❌".match(
   /\p{Extended_Pictographic}️?/gu,
 )!;
 
-const timeFmt = new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit" });
-const dayFmt = new Intl.DateTimeFormat("zh-CN", {
-  year: "numeric",
-  month: "long",
-  day: "numeric",
-  weekday: "short",
+const format = (locale: Locale) => ({
+  time: new Intl.DateTimeFormat(intlLocale(locale), { hour: "2-digit", minute: "2-digit" }),
+  day: new Intl.DateTimeFormat(intlLocale(locale), {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    weekday: "short",
+  }),
 });
+const FORMAT = { zh: format("zh"), en: format("en") };
 
 type Status = "connecting" | "live" | "reconnecting";
 
@@ -40,6 +45,8 @@ export function ChatPanel({
   initial: ChatMessageDTO[];
   initialHasMore: boolean;
 }) {
+  const t = useT();
+  const locale = useLocale();
   const [messages, setMessages] = useState(initial);
   const [hasMore, setHasMore] = useState(initialHasMore);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -147,16 +154,20 @@ export function ChatPanel({
 
   return (
     <section
-      aria-label="群聊天"
+      aria-label={t("群聊天")}
       className="flex h-[calc(100dvh-16rem)] min-h-[420px] flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900"
     >
       <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-2 text-xs text-zinc-500 dark:border-zinc-800">
-        <span>聊天记录永久保存</span>
+        <span>{t("聊天记录永久保存")}</span>
         <span aria-live="polite" className="flex items-center gap-1.5">
           <span
             className={`h-2 w-2 rounded-full ${status === "live" ? "bg-emerald-500" : "bg-amber-400"}`}
           />
-          {status === "live" ? "实时" : status === "connecting" ? "连接中…" : "重新连接中…"}
+          {status === "live"
+            ? t("实时")
+            : status === "connecting"
+              ? t("连接中…")
+              : t("重新连接中…")}
         </span>
       </div>
 
@@ -164,7 +175,7 @@ export function ChatPanel({
         <div
           ref={scroller}
           role="log"
-          aria-label="消息"
+          aria-label={t("消息")}
           onScroll={() => nearBottom() && setUnseenBelow(0)}
           className="h-full space-y-1 overflow-y-auto px-4 py-3"
         >
@@ -177,22 +188,26 @@ export function ChatPanel({
                 disabled={loadingOlder}
                 onClick={loadOlder}
               >
-                {loadingOlder ? "加载中…" : "加载更早的消息"}
+                {loadingOlder ? t("加载中…") : t("加载更早的消息")}
               </Button>
             </div>
           ) : (
             messages.length > 0 && (
-              <p className="pb-2 text-center text-xs text-zinc-400">— 已经到最早的消息了 —</p>
+              <p className="pb-2 text-center text-xs text-zinc-400">
+                {t("— 已经到最早的消息了 —")}
+              </p>
             )
           )}
           {messages.length === 0 && (
-            <p className="py-12 text-center text-sm text-zinc-500">还没有消息，打个招呼吧 👋</p>
+            <p className="py-12 text-center text-sm text-zinc-500">
+              {t("还没有消息，打个招呼吧 👋")}
+            </p>
           )}
           {messages.map((m, i) => (
             <Fragment key={m.id}>
               {(i === 0 || !sameDay(messages[i - 1].createdAt, m.createdAt)) && (
                 <p className="py-2 text-center text-xs text-zinc-400">
-                  {mounted ? dayFmt.format(new Date(m.createdAt)) : " "}
+                  {mounted ? FORMAT[locale].day.format(new Date(m.createdAt)) : " "}
                 </p>
               )}
               <MessageRow
@@ -212,7 +227,7 @@ export function ChatPanel({
             onClick={scrollToBottom}
             className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-indigo-600 px-3 py-1 text-xs text-white shadow"
           >
-            {unseenBelow} 条新消息 ↓
+            {t("{n} 条新消息 ↓", { n: unseenBelow })}
           </button>
         )}
       </div>
@@ -226,7 +241,7 @@ export function ChatPanel({
       >
         {error && <p className="mb-2 text-xs text-red-600">{error}</p>}
         {showEmoji && (
-          <div className="mb-2 flex flex-wrap gap-1" aria-label="表情">
+          <div className="mb-2 flex flex-wrap gap-1" aria-label={t("表情")}>
             {EMOJIS.map((e) => (
               <button
                 key={e}
@@ -242,7 +257,7 @@ export function ChatPanel({
         <div className="flex items-end gap-2">
           <button
             type="button"
-            aria-label="表情"
+            aria-label={t("表情")}
             aria-pressed={showEmoji}
             onClick={() => setShowEmoji((v) => !v)}
             className="rounded-lg p-2 text-xl hover:bg-zinc-100 dark:hover:bg-zinc-800"
@@ -251,11 +266,11 @@ export function ChatPanel({
           </button>
           <textarea
             ref={input}
-            aria-label="输入消息"
+            aria-label={t("输入消息")}
             value={draft}
             maxLength={MAX_MESSAGE_LENGTH}
             rows={1}
-            placeholder="说点什么…（Enter 发送，Shift+Enter 换行）"
+            placeholder={t("说点什么…（Enter 发送，Shift+Enter 换行）")}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -265,7 +280,7 @@ export function ChatPanel({
             }}
             className="max-h-40 min-h-10 flex-1 resize-none rounded-lg border border-zinc-300 bg-white px-3 py-2 text-base outline-none sm:text-sm field-sizing-content focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-zinc-700 dark:bg-zinc-950"
           />
-          <Button disabled={sending || !draft.trim()}>发送</Button>
+          <Button disabled={sending || !draft.trim()}>{t("发送")}</Button>
         </div>
         {draft.length > MAX_MESSAGE_LENGTH - 200 && (
           <p className="mt-1 text-right text-xs text-zinc-500">
@@ -296,7 +311,9 @@ function MessageRow({
   memberNames: string[];
   mounted: boolean;
 }) {
-  const time = mounted ? timeFmt.format(new Date(m.createdAt)) : "";
+  const t = useT();
+  const locale = useLocale();
+  const time = mounted ? FORMAT[locale].time.format(new Date(m.createdAt)) : "";
 
   if (m.type === "SYSTEM") {
     return (
@@ -318,7 +335,7 @@ function MessageRow({
   }
 
   const mine = m.author?.id === meId;
-  const name = m.author?.displayName ?? "已注销用户";
+  const name = m.author?.displayName ?? t("已注销用户");
   // Consecutive messages from one author within 5 minutes are grouped.
   const grouped =
     previous?.type === "USER" &&
@@ -337,7 +354,7 @@ function MessageRow({
       <div className={`flex max-w-[75%] flex-col ${mine ? "items-end" : "items-start"}`}>
         {!grouped && (
           <p className="mb-0.5 text-xs text-zinc-500">
-            {mine ? "我" : name} · {time}
+            {mine ? t("我") : name} · {time}
           </p>
         )}
         <div

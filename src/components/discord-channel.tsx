@@ -6,12 +6,14 @@ import type { FormState } from "@/lib/auth/actions";
 import { setDiscordChannelAction } from "@/lib/groups/actions";
 import { LocalDate } from "./games";
 import { Alert, Button } from "./ui";
+import { useT } from "./i18n";
+import { msg } from "@/lib/i18n";
 
 const STATUS_TEXT: Record<NotificationStatus, string> = {
-  PENDING: "等待发送",
-  SENDING: "发送中",
-  SENT: "已发送",
-  FAILED: "发送失败",
+  PENDING: msg("等待发送"),
+  SENDING: msg("发送中"),
+  SENT: msg("已发送"),
+  FAILED: msg("发送失败"),
 };
 
 function Status({ state }: { state: FormState }) {
@@ -41,6 +43,7 @@ export function DiscordChannelForm({
     createdAt: Date;
   } | null;
 }) {
+  const t = useT();
   const [state, action, pending] = useActionState(
     setDiscordChannelAction.bind(null, groupId),
     undefined,
@@ -54,21 +57,22 @@ export function DiscordChannelForm({
   return (
     <div className="space-y-3">
       <p className="text-sm text-zinc-500">
-        新投票和新投票提示会发到这个频道，并 @ 已绑定
-        Discord、开了这类通知的成员（他们就不会再单独收到私信）。
+        {t(
+          "新投票和新投票提示会发到这个频道，并 @ 已绑定 Discord、开了这类通知的成员（他们就不会再单独收到私信）。",
+        )}
       </p>
       <Status state={state} />
       {unavailable && <Alert kind="info">{unavailable}</Alert>}
       <form action={action} className="flex flex-wrap items-end gap-2">
         <label className="min-w-0 flex-1">
-          <span className="mb-1 block text-sm font-medium">Discord 频道</span>
+          <span className="mb-1 block text-sm font-medium">{t("Discord 频道")}</span>
           <select
             name="channelId"
             defaultValue={current?.id ?? ""}
             disabled={!options && !current}
             className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
           >
-            <option value="">不发到频道（成员各自收私信）</option>
+            <option value="">{t("不发到频道（成员各自收私信）")}</option>
             {choices.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.label}
@@ -77,14 +81,15 @@ export function DiscordChannelForm({
           </select>
         </label>
         <Button disabled={pending || (!options && !current)}>
-          {pending ? "连接中…" : "保存频道"}
+          {pending ? t("连接中…") : t("保存频道")}
         </Button>
       </form>
       {current && last && (
         <p className="text-xs text-zinc-500">
-          最近一条：{last.title} · <LocalDate value={last.createdAt} /> ·{" "}
+          {t("最近一条：")}
+          {last.title} · <LocalDate value={last.createdAt} /> ·{" "}
           <span className={last.status === "FAILED" ? "text-red-600 dark:text-red-400" : ""}>
-            {STATUS_TEXT[last.status]}
+            {t(STATUS_TEXT[last.status])}
             {last.status !== "SENT" && last.lastError && `（${last.lastError}）`}
           </span>
         </p>
